@@ -25,9 +25,23 @@ export interface LinearBoard {
 	usedLength: number;
 }
 
-export function packLinear(stocks: LinearStock[], pieces: LinearPiece[], kerf = 0): LinearBoard[] {
+export interface UnplacedPiece {
+	piece: LinearPiece;
+	reason: 'too_large' | 'stock_exhausted';
+}
+
+export interface LinearPackResult {
+	boards: LinearBoard[];
+	unplaced: UnplacedPiece[];
+}
+
+export function packLinear(
+	stocks: LinearStock[],
+	pieces: LinearPiece[],
+	kerf = 0
+): LinearPackResult {
 	const validStocks = stocks.filter((s) => s.length > 0);
-	if (!validStocks.length || !pieces.length) return [];
+	if (!validStocks.length || !pieces.length) return { boards: [], unplaced: [] };
 
 	const allPieces: LinearPiece[] = [];
 	for (const piece of pieces) {
@@ -35,7 +49,7 @@ export function packLinear(stocks: LinearStock[], pieces: LinearPiece[], kerf = 
 			for (let q = 0; q < piece.quantity; q++) allPieces.push(piece);
 		}
 	}
-	if (!allPieces.length) return [];
+	if (!allPieces.length) return { boards: [], unplaced: [] };
 	allPieces.sort((a, b) => b.length - a.length);
 
 	const remaining = new Map<string, number>(
@@ -49,6 +63,11 @@ export function packLinear(stocks: LinearStock[], pieces: LinearPiece[], kerf = 
 	}
 
 	const openBoards: OpenBoard[] = [];
+	const unplaced: UnplacedPiece[] = [];
+
+	function fitsInAnyStock(pieceLength: number): boolean {
+		return validStocks.some((s) => s.length >= pieceLength + kerf);
+	}
 
 	function chooseBestStock(pieceLength: number): LinearStock | null {
 		let best: { stock: LinearStock; length: number } | null = null;
@@ -87,7 +106,13 @@ export function packLinear(stocks: LinearStock[], pieces: LinearPiece[], kerf = 
 		}
 
 		const stock = chooseBestStock(piece.length);
-		if (!stock) continue;
+		if (!stock) {
+			unplaced.push({
+				piece,
+				reason: fitsInAnyStock(piece.length) ? 'stock_exhausted' : 'too_large'
+			});
+			continue;
+		}
 
 		remaining.set(stock.id, (remaining.get(stock.id) ?? 0) - 1);
 		const newBoard: OpenBoard = { stock, placements: [], usedLength: 0 };
@@ -102,10 +127,11 @@ export function packLinear(stocks: LinearStock[], pieces: LinearPiece[], kerf = 
 		newBoard.usedLength = needed;
 	}
 
-	return openBoards.map((board, index) => ({
+	const boards = openBoards.map((board, index) => ({
 		index,
 		stockLength: board.stock.length,
 		placements: board.placements,
 		usedLength: board.usedLength
 	}));
+	return { boards, unplaced };
 }

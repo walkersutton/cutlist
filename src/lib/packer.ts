@@ -32,8 +32,19 @@ export interface Sheet {
 	index: number;
 	sheetWidth: number;
 	sheetHeight: number;
+	grain: GrainDirection;
 	placements: PlacedPanel[];
 	wastePercent: number;
+}
+
+export interface UnplacedPanel {
+	panel: PanelInput;
+	reason: 'too_large' | 'stock_exhausted';
+}
+
+export interface PackResult {
+	sheets: Sheet[];
+	unplaced: UnplacedPanel[];
 }
 
 interface Rect {
@@ -165,9 +176,9 @@ function applyPlacement(
 	sheet.freeRects.push(...pruneContained(newFree));
 }
 
-export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): Sheet[] {
+export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): PackResult {
 	const validTypes = sheetTypes.filter((t) => t.width > 0 && t.height > 0);
-	if (!validTypes.length || !panels.length) return [];
+	if (!validTypes.length || !panels.length) return { sheets: [], unplaced: [] };
 
 	const pieces: Array<{ panel: PanelInput }> = [];
 	for (const panel of panels) {
@@ -175,7 +186,7 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): S
 			for (let q = 0; q < panel.quantity; q++) pieces.push({ panel });
 		}
 	}
-	if (!pieces.length) return [];
+	if (!pieces.length) return { sheets: [], unplaced: [] };
 	pieces.sort((a, b) => b.panel.width * b.panel.height - a.panel.width * a.panel.height);
 
 	const remaining = new Map<string, number>(
@@ -183,6 +194,14 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): S
 	);
 
 	const openSheets: OpenSheet[] = [];
+	const unplaced: UnplacedPanel[] = [];
+
+	function fitsInAnyType(panel: PanelInput): boolean {
+		return validTypes.some((type) => {
+			const orientations = allowedOrientations(panel, type);
+			return orientations.some(({ w, h }) => type.width >= w + kerf && type.height >= h + kerf);
+		});
+	}
 
 	function chooseBestType(panel: PanelInput): SheetType | null {
 		let best: { type: SheetType; area: number } | null = null;
@@ -226,7 +245,10 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): S
 
 		// No open sheet fits — open a new one
 		const type = chooseBestType(panel);
-		if (!type) continue;
+		if (!type) {
+			unplaced.push({ panel, reason: fitsInAnyType(panel) ? 'stock_exhausted' : 'too_large' });
+			continue;
+		}
 
 		remaining.set(type.id, (remaining.get(type.id) ?? 0) - 1);
 		const newSheet: OpenSheet = {
@@ -252,15 +274,17 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): S
 		}
 	}
 
-	return openSheets.map((sheet, index) => {
+	const sheets = openSheets.map((sheet, index) => {
 		const sheetArea = sheet.type.width * sheet.type.height;
 		const usedArea = sheet.placements.reduce((s, p) => s + p.width * p.height, 0);
 		return {
 			index,
 			sheetWidth: sheet.type.width,
 			sheetHeight: sheet.type.height,
+			grain: sheet.type.grain,
 			placements: sheet.placements,
 			wastePercent: Math.round((1 - usedArea / sheetArea) * 100)
 		};
 	});
+	return { sheets, unplaced };
 }

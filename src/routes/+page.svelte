@@ -101,7 +101,25 @@
 		linearPieces = linearPieces.filter((p) => p.id !== id);
 	}
 
-	let linearBoards = $derived(packLinear(linearStocks, linearPieces, kerf));
+	let linearPackResult = $derived(packLinear(linearStocks, linearPieces, kerf));
+	let linearBoards = $derived(linearPackResult.boards);
+	let linearUnplaced = $derived(
+		(() => {
+			const map: Record<string, { label: string; count: number; reason: string }> = {};
+			for (const { piece, reason } of linearPackResult.unplaced) {
+				const key = `${piece.id}:${reason}`;
+				const e = map[key];
+				if (e) e.count++;
+				else
+					map[key] = {
+						label: piece.label || piece.length + (unit === 'mm' ? ' mm' : '"'),
+						count: 1,
+						reason
+					};
+			}
+			return Object.values(map);
+		})()
+	);
 
 	let linearSummary = $derived(
 		(() => {
@@ -157,7 +175,21 @@
 		panels = panels.filter((p) => p.id !== id);
 	}
 
-	let sheets = $derived(pack(sheetTypes, panels, kerf));
+	let packResult = $derived(pack(sheetTypes, panels, kerf));
+	let sheets = $derived(packResult.sheets);
+	let sheetUnplaced = $derived(
+		(() => {
+			const map: Record<string, { label: string; count: number; reason: string }> = {};
+			for (const { panel, reason } of packResult.unplaced) {
+				const key = `${panel.id}:${reason}`;
+				const e = map[key];
+				if (e) e.count++;
+				else
+					map[key] = { label: panel.label || `${panel.width}×${panel.height}`, count: 1, reason };
+			}
+			return Object.values(map);
+		})()
+	);
 
 	let sheetSummary = $derived(
 		(() => {
@@ -436,7 +468,6 @@
 								}}
 							/>
 							<select class={inputCls} bind:value={st.grain}>
-								<option value="any">Any</option>
 								<option value="horizontal">Horiz →</option>
 								<option value="vertical">Vert ↑</option>
 							</select>
@@ -519,6 +550,25 @@
 					<button onclick={addPanel} class={addBtnCls}>+ Add panel</button>
 				</section>
 
+				<!-- Unplaced panels warning -->
+				{#if sheetUnplaced.length > 0}
+					<section>
+						<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+							<p class="mb-2 text-xs font-semibold text-amber-800">Could not place all panels</p>
+							<ul class="space-y-1">
+								{#each sheetUnplaced as item (item.label + item.reason)}
+									<li class="text-xs text-amber-700">
+										{item.count > 1 ? `${item.count}×` : ''} "{item.label}" —
+										{item.reason === 'too_large'
+											? 'too large to fit in any sheet'
+											: 'not enough stock sheets available'}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					</section>
+				{/if}
+
 				<!-- Results -->
 				{#if sheets.length > 0}
 					<section>
@@ -538,6 +588,9 @@
 								{@const sc = svgScale(sheet.sheetWidth, sheet.sheetHeight)}
 								{@const svgW = sheet.sheetWidth * sc}
 								{@const svgH = sheet.sheetHeight * sc}
+								{@const sheetIsHoriz = sheet.grain === 'horizontal'}
+								{@const grainSpan = sheetIsHoriz ? svgH : svgW}
+								{@const grainCount = Math.max(1, Math.floor(grainSpan / 14) - 1)}
 								<div class="rounded-2xl border border-zinc-100 bg-white p-4 shadow-sm">
 									<p class="mb-2 text-xs text-zinc-600">
 										Sheet {sheet.index + 1} · {sheet.sheetWidth}×{sheet.sheetHeight}{unitLabel}
@@ -548,6 +601,30 @@
 										style="display:block;border-radius:8px;overflow:hidden"
 									>
 										<rect width={svgW} height={svgH} fill="#f4f4f5" />
+										{#each [...Array(grainCount).keys()] as i (i)}
+											{@const offset = (i + 1) * (grainSpan / (grainCount + 1))}
+											{#if sheetIsHoriz}
+												<line
+													x1={3}
+													y1={offset}
+													x2={svgW - 3}
+													y2={offset}
+													stroke="#a1a1aa"
+													stroke-width="0.6"
+													opacity="0.5"
+												/>
+											{:else}
+												<line
+													x1={offset}
+													y1={3}
+													x2={offset}
+													y2={svgH - 3}
+													stroke="#a1a1aa"
+													stroke-width="0.6"
+													opacity="0.5"
+												/>
+											{/if}
+										{/each}
 										{#each sheet.placements as p (`${p.panelId}-${p.x}-${p.y}`)}
 											{@const px = p.x * sc}
 											{@const py = p.y * sc}
@@ -682,6 +759,25 @@
 					{/if}
 					<button onclick={addLinearPiece} class={addBtnCls}>+ Add piece</button>
 				</section>
+
+				<!-- Unplaced pieces warning -->
+				{#if linearUnplaced.length > 0}
+					<section>
+						<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+							<p class="mb-2 text-xs font-semibold text-amber-800">Could not place all pieces</p>
+							<ul class="space-y-1">
+								{#each linearUnplaced as item (item.label + item.reason)}
+									<li class="text-xs text-amber-700">
+										{item.count > 1 ? `${item.count}×` : ''} "{item.label}" —
+										{item.reason === 'too_large'
+											? 'too long to fit in any stock'
+											: 'not enough stock available'}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					</section>
+				{/if}
 
 				<!-- Linear Results -->
 				{#if linearBoards.length > 0}
