@@ -107,7 +107,8 @@ interface OpenSheet {
   placements: PlacedPanel[];
 }
 
-function applyPlacement(sheet: OpenSheet, rect: Rect, panel: PanelInput, rotated: boolean) {
+// kerf: placed panel records actual size; free-rect splitting uses size+kerf so blade width is reserved
+function applyPlacement(sheet: OpenSheet, rect: Rect, panel: PanelInput, rotated: boolean, kerf: number) {
   sheet.placements.push({
     panelId: panel.id,
     label: panel.label,
@@ -118,10 +119,11 @@ function applyPlacement(sheet: OpenSheet, rect: Rect, panel: PanelInput, rotated
     height: rect.height,
     rotated
   });
+  const occupied: Rect = { x: rect.x, y: rect.y, width: rect.width + kerf, height: rect.height + kerf };
   const newFree: Rect[] = [];
   for (const free of sheet.freeRects) {
-    if (rectsOverlap(free, rect)) {
-      newFree.push(...splitRect(free, rect));
+    if (rectsOverlap(free, occupied)) {
+      newFree.push(...splitRect(free, occupied));
     } else {
       newFree.push(free);
     }
@@ -130,7 +132,7 @@ function applyPlacement(sheet: OpenSheet, rect: Rect, panel: PanelInput, rotated
   sheet.freeRects.push(...pruneContained(newFree));
 }
 
-export function pack(sheetTypes: SheetType[], panels: PanelInput[]): Sheet[] {
+export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): Sheet[] {
   const validTypes = sheetTypes.filter(t => t.width > 0 && t.height > 0);
   if (!validTypes.length || !panels.length) return [];
 
@@ -155,7 +157,7 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[]): Sheet[] {
     for (const type of validTypes) {
       if ((remaining.get(type.id) ?? 0) <= 0) continue;
       for (const { w, h } of orientations) {
-        if (type.width >= w && type.height >= h) {
+        if (type.width >= w + kerf && type.height >= h + kerf) {
           const area = type.width * type.height;
           if (!best || area < best.area) best = { type, area };
           break;
@@ -168,25 +170,26 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[]): Sheet[] {
   for (const { panel } of pieces) {
     const orientations = allowedOrientations(panel);
 
-    // Find best placement across all open sheets
+    // Find best placement across all open sheets (search with kerf-padded size)
     let best: { sheet: OpenSheet; rect: Rect; rotated: boolean; score: number } | null = null;
     for (const sheet of openSheets) {
       for (const { w, h, rotated } of orientations) {
-        const candidate = tryPlace(sheet.freeRects, w, h);
+        const candidate = tryPlace(sheet.freeRects, w + kerf, h + kerf);
         if (candidate && (!best || candidate.score < best.score)) {
-          best = { sheet, rect: candidate.rect, rotated, score: candidate.score };
+          // store actual panel size in rect (kerf reserved separately during split)
+          best = { sheet, rect: { x: candidate.rect.x, y: candidate.rect.y, width: w, height: h }, rotated, score: candidate.score };
         }
       }
     }
 
     if (best) {
-      applyPlacement(best.sheet, best.rect, panel, best.rotated);
+      applyPlacement(best.sheet, best.rect, panel, best.rotated, kerf);
       continue;
     }
 
     // No open sheet fits — open a new one
     const type = chooseBestType(panel);
-    if (!type) continue; // piece can't fit on any available sheet type
+    if (!type) continue;
 
     remaining.set(type.id, (remaining.get(type.id) ?? 0) - 1);
     const newSheet: OpenSheet = {
@@ -197,9 +200,9 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[]): Sheet[] {
     openSheets.push(newSheet);
 
     for (const { w, h, rotated } of orientations) {
-      const candidate = tryPlace(newSheet.freeRects, w, h);
+      const candidate = tryPlace(newSheet.freeRects, w + kerf, h + kerf);
       if (candidate) {
-        applyPlacement(newSheet, candidate.rect, panel, rotated);
+        applyPlacement(newSheet, { x: candidate.rect.x, y: candidate.rect.y, width: w, height: h }, panel, rotated, kerf);
         break;
       }
     }

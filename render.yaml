@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: cutlist
+    env: static
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run build
+    staticPublishPath: ./build
