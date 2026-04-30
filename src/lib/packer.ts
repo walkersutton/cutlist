@@ -1,0 +1,219 @@
+export type GrainDirection = 'horizontal' | 'vertical' | 'any';
+
+export interface SheetType {
+  id: string;
+  width: number;
+  height: number;
+  quantity: number; // 0 = unlimited
+}
+
+export interface PanelInput {
+  id: string;
+  width: number;
+  height: number;
+  quantity: number;
+  grain: GrainDirection;
+  label: string;
+}
+
+export interface PlacedPanel {
+  panelId: string;
+  label: string;
+  grain: GrainDirection;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotated: boolean;
+}
+
+export interface Sheet {
+  index: number;
+  sheetWidth: number;
+  sheetHeight: number;
+  placements: PlacedPanel[];
+  wastePercent: number;
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x &&
+    a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function splitRect(free: Rect, placed: Rect): Rect[] {
+  const result: Rect[] = [];
+  if (placed.x > free.x)
+    result.push({ x: free.x, y: free.y, width: placed.x - free.x, height: free.height });
+  if (placed.x + placed.width < free.x + free.width)
+    result.push({ x: placed.x + placed.width, y: free.y, width: free.x + free.width - placed.x - placed.width, height: free.height });
+  if (placed.y > free.y)
+    result.push({ x: free.x, y: free.y, width: free.width, height: placed.y - free.y });
+  if (placed.y + placed.height < free.y + free.height)
+    result.push({ x: free.x, y: placed.y + placed.height, width: free.width, height: free.y + free.height - placed.y - placed.height });
+  return result;
+}
+
+function isContained(inner: Rect, outer: Rect): boolean {
+  return inner.x >= outer.x && inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height;
+}
+
+function pruneContained(rects: Rect[]): Rect[] {
+  return rects.filter((r, i) =>
+    !rects.some((other, j) => j !== i && isContained(r, other))
+  );
+}
+
+function scoreShortSide(free: Rect, w: number, h: number): number {
+  const shortSide = Math.min(free.width - w, free.height - h);
+  const longSide = Math.max(free.width - w, free.height - h);
+  return shortSide * 1000 + longSide;
+}
+
+function tryPlace(freeRects: Rect[], w: number, h: number): { rect: Rect; score: number } | null {
+  let best: { rect: Rect; score: number } | null = null;
+  for (const f of freeRects) {
+    if (f.width >= w && f.height >= h) {
+      const score = scoreShortSide(f, w, h);
+      if (!best || score < best.score) {
+        best = { rect: { x: f.x, y: f.y, width: w, height: h }, score };
+      }
+    }
+  }
+  return best;
+}
+
+function allowedOrientations(panel: PanelInput): Array<{ w: number; h: number; rotated: boolean }> {
+  const orientations: Array<{ w: number; h: number; rotated: boolean }> = [
+    { w: panel.width, h: panel.height, rotated: false }
+  ];
+  if (panel.grain === 'any' && panel.width !== panel.height) {
+    orientations.push({ w: panel.height, h: panel.width, rotated: true });
+  }
+  return orientations;
+}
+
+interface OpenSheet {
+  type: SheetType;
+  freeRects: Rect[];
+  placements: PlacedPanel[];
+}
+
+function applyPlacement(sheet: OpenSheet, rect: Rect, panel: PanelInput, rotated: boolean) {
+  sheet.placements.push({
+    panelId: panel.id,
+    label: panel.label,
+    grain: panel.grain,
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    rotated
+  });
+  const newFree: Rect[] = [];
+  for (const free of sheet.freeRects) {
+    if (rectsOverlap(free, rect)) {
+      newFree.push(...splitRect(free, rect));
+    } else {
+      newFree.push(free);
+    }
+  }
+  sheet.freeRects.length = 0;
+  sheet.freeRects.push(...pruneContained(newFree));
+}
+
+export function pack(sheetTypes: SheetType[], panels: PanelInput[]): Sheet[] {
+  const validTypes = sheetTypes.filter(t => t.width > 0 && t.height > 0);
+  if (!validTypes.length || !panels.length) return [];
+
+  const pieces: Array<{ panel: PanelInput }> = [];
+  for (const panel of panels) {
+    if (panel.width > 0 && panel.height > 0 && panel.quantity > 0) {
+      for (let q = 0; q < panel.quantity; q++) pieces.push({ panel });
+    }
+  }
+  if (!pieces.length) return [];
+  pieces.sort((a, b) => b.panel.width * b.panel.height - a.panel.width * a.panel.height);
+
+  const remaining = new Map<string, number>(
+    validTypes.map(t => [t.id, t.quantity === 0 ? Infinity : t.quantity])
+  );
+
+  const openSheets: OpenSheet[] = [];
+
+  function chooseBestType(panel: PanelInput): SheetType | null {
+    const orientations = allowedOrientations(panel);
+    let best: { type: SheetType; area: number } | null = null;
+    for (const type of validTypes) {
+      if ((remaining.get(type.id) ?? 0) <= 0) continue;
+      for (const { w, h } of orientations) {
+        if (type.width >= w && type.height >= h) {
+          const area = type.width * type.height;
+          if (!best || area < best.area) best = { type, area };
+          break;
+        }
+      }
+    }
+    return best?.type ?? null;
+  }
+
+  for (const { panel } of pieces) {
+    const orientations = allowedOrientations(panel);
+
+    // Find best placement across all open sheets
+    let best: { sheet: OpenSheet; rect: Rect; rotated: boolean; score: number } | null = null;
+    for (const sheet of openSheets) {
+      for (const { w, h, rotated } of orientations) {
+        const candidate = tryPlace(sheet.freeRects, w, h);
+        if (candidate && (!best || candidate.score < best.score)) {
+          best = { sheet, rect: candidate.rect, rotated, score: candidate.score };
+        }
+      }
+    }
+
+    if (best) {
+      applyPlacement(best.sheet, best.rect, panel, best.rotated);
+      continue;
+    }
+
+    // No open sheet fits — open a new one
+    const type = chooseBestType(panel);
+    if (!type) continue; // piece can't fit on any available sheet type
+
+    remaining.set(type.id, (remaining.get(type.id) ?? 0) - 1);
+    const newSheet: OpenSheet = {
+      type,
+      freeRects: [{ x: 0, y: 0, width: type.width, height: type.height }],
+      placements: []
+    };
+    openSheets.push(newSheet);
+
+    for (const { w, h, rotated } of orientations) {
+      const candidate = tryPlace(newSheet.freeRects, w, h);
+      if (candidate) {
+        applyPlacement(newSheet, candidate.rect, panel, rotated);
+        break;
+      }
+    }
+  }
+
+  return openSheets.map((sheet, index) => {
+    const sheetArea = sheet.type.width * sheet.type.height;
+    const usedArea = sheet.placements.reduce((s, p) => s + p.width * p.height, 0);
+    return {
+      index,
+      sheetWidth: sheet.type.width,
+      sheetHeight: sheet.type.height,
+      placements: sheet.placements,
+      wastePercent: Math.round((1 - usedArea / sheetArea) * 100)
+    };
+  });
+}
