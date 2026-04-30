@@ -208,6 +208,153 @@
 	function svgScale(w: number, h: number) {
 		return Math.min(SVG_MAX / w, SVG_MAX / h);
 	}
+	let sheetZoom = $state(1.0);
+
+	function printPlan() {
+		const ule = unit === 'in' ? '&quot;' : ' mm';
+
+		function esc(s: string) {
+			return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		}
+
+		function buildSheetSvg(sheet: (typeof sheets)[0]): string {
+			const PMAX = 500;
+			const sc = Math.min(PMAX / sheet.sheetWidth, PMAX / sheet.sheetHeight);
+			const w = sheet.sheetWidth * sc;
+			const h = sheet.sheetHeight * sc;
+			let s = `<svg width="${w.toFixed(1)}" height="${h.toFixed(1)}" style="display:block;border-radius:4px;overflow:hidden">`;
+			s += `<rect width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="#f4f4f5"/>`;
+			const sheetIsHoriz = sheet.grain === 'horizontal';
+			const grainSpan = sheetIsHoriz ? h : w;
+			const grainCount = Math.max(1, Math.floor(grainSpan / 14) - 1);
+			for (let i = 0; i < grainCount; i++) {
+				const off = ((i + 1) * grainSpan) / (grainCount + 1);
+				if (sheetIsHoriz) {
+					s += `<line x1="3" y1="${off.toFixed(1)}" x2="${(w - 3).toFixed(1)}" y2="${off.toFixed(1)}" stroke="#a1a1aa" stroke-width="0.6" opacity="0.5"/>`;
+				} else {
+					s += `<line x1="${off.toFixed(1)}" y1="3" x2="${off.toFixed(1)}" y2="${(h - 3).toFixed(1)}" stroke="#a1a1aa" stroke-width="0.6" opacity="0.5"/>`;
+				}
+			}
+			for (const p of sheet.placements) {
+				const px = p.x * sc;
+				const py = p.y * sc;
+				const pw = p.width * sc;
+				const ph = p.height * sc;
+				const dispW = p.rotated ? p.height : p.width;
+				const dispH = p.rotated ? p.width : p.height;
+				s += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" fill="${panelColor(p.panelId)}" rx="2"/>`;
+				if (p.grain !== 'any' && pw > 8 && ph > 8) {
+					const eg = p.rotated ? (p.grain === 'horizontal' ? 'vertical' : 'horizontal') : p.grain;
+					const isH = eg === 'horizontal';
+					const span = isH ? ph : pw;
+					const cnt = Math.max(1, Math.floor(span / 10) - 1);
+					for (let i = 0; i < cnt; i++) {
+						const off = ((i + 1) * span) / (cnt + 1);
+						if (isH) {
+							s += `<line x1="${(px + 4).toFixed(1)}" y1="${(py + off).toFixed(1)}" x2="${(px + pw - 4).toFixed(1)}" y2="${(py + off).toFixed(1)}" stroke="#1e3a5f" stroke-width="0.75" opacity="0.2"/>`;
+						} else {
+							s += `<line x1="${(px + off).toFixed(1)}" y1="${(py + 4).toFixed(1)}" x2="${(px + off).toFixed(1)}" y2="${(py + ph - 4).toFixed(1)}" stroke="#1e3a5f" stroke-width="0.75" opacity="0.2"/>`;
+						}
+					}
+				}
+				if (pw > 16) {
+					const wfs = Math.max(6, Math.min(9, pw / 6));
+					s += `<text x="${(px + pw / 2).toFixed(1)}" y="${(py + 3).toFixed(1)}" text-anchor="middle" dominant-baseline="hanging" font-size="${wfs.toFixed(1)}" fill="#18181b" font-family="system-ui,sans-serif" opacity="0.75">${dispW}${ule}</text>`;
+				}
+				if (ph > 20) {
+					const hfs = Math.max(6, Math.min(9, ph / 6));
+					const hx = px + Math.ceil(hfs / 2) + 2;
+					s += `<text x="${hx.toFixed(1)}" y="${(py + ph / 2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${hfs.toFixed(1)}" fill="#18181b" font-family="system-ui,sans-serif" opacity="0.75" transform="rotate(-90 ${hx.toFixed(1)} ${(py + ph / 2).toFixed(1)})">${dispH}${ule}</text>`;
+				}
+				if (pw > 30 && ph > 18 && p.label) {
+					const fs = Math.min(11, pw / 5, ph / 3);
+					s += `<text x="${(px + pw / 2).toFixed(1)}" y="${(py + ph / 2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(1)}" fill="#18181b" font-family="system-ui,sans-serif" font-weight="500">${esc(p.label)}${p.rotated ? ' ↺' : ''}</text>`;
+				}
+			}
+			s += '</svg>';
+			return s;
+		}
+
+		const cutList = panels.filter((p) => p.width > 0 && p.height > 0 && p.quantity > 0);
+		const dateStr = new Date().toLocaleDateString(undefined, {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+
+		const materialsRows = sheetSummary
+			.map((r) => `<tr><td>${r.w}×${r.h}${ule}</td><td>${r.count}</td></tr>`)
+			.join('');
+
+		const cutRows = cutList
+			.map(
+				(p) =>
+					`<tr>
+					<td><span class="sw" style="background:${panelColor(p.id)}"></span>${esc(p.label || '—')}</td>
+					<td>${p.width}${ule}</td><td>${p.height}${ule}</td>
+					<td class="num">${p.quantity}</td>
+					<td>${p.grain}</td>
+				</tr>`
+			)
+			.join('');
+
+		const sheetCards = sheets
+			.map((sheet) => {
+				const placements = sheet.placements
+					.map((p) => {
+						const dw = p.rotated ? p.height : p.width;
+						const dh = p.rotated ? p.width : p.height;
+						const name = p.label ? esc(p.label) : `${dw}×${dh}${ule}`;
+						const rot = p.rotated ? ' <span class="rot">↺</span>' : '';
+						return `<li><span class="sw" style="background:${panelColor(p.panelId)}"></span>${name} — ${dw}×${dh}${ule}${rot}</li>`;
+					})
+					.join('');
+				return `<div class="card">
+					<p class="clabel">Sheet ${sheet.index + 1} &nbsp;·&nbsp; ${sheet.sheetWidth}×${sheet.sheetHeight}${ule} &nbsp;·&nbsp; ${sheet.wastePercent}% waste</p>
+					${buildSheetSvg(sheet)}
+					<ul class="plist">${placements}</ul>
+				</div>`;
+			})
+			.join('');
+
+		const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cut Plan</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{size:letter;margin:.75in}
+body{font-family:system-ui,-apple-system,sans-serif;font-size:10pt;color:#18181b}
+h1{font-size:16pt;font-weight:700;margin-bottom:2pt}
+.meta{font-size:8.5pt;color:#71717a;margin-bottom:14pt}
+h2{font-size:11pt;font-weight:600;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e4e4e7}
+table{width:100%;border-collapse:collapse;font-size:9pt}
+thead th{text-align:left;padding:3pt 8pt;background:#f4f4f5;font-weight:600}
+tbody td{padding:3pt 8pt;border-bottom:1px solid #f4f4f5;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+.num{text-align:right}
+.sw{display:inline-block;width:8pt;height:8pt;border-radius:2pt;vertical-align:middle;margin-right:3pt}
+.sheets{display:flex;flex-wrap:wrap;gap:14pt;margin-top:6pt}
+.card{break-inside:avoid;page-break-inside:avoid}
+.clabel{font-size:8pt;color:#71717a;margin-bottom:3pt}
+.plist{margin-top:5pt;font-size:8pt;color:#3f3f46;list-style:none}
+.plist li{padding:1pt 0}
+.rot{font-style:normal}
+</style></head><body>
+<h1>Cut Plan</h1>
+<p class="meta">${dateStr} &nbsp;·&nbsp; Kerf: ${kerf}${ule}</p>
+<h2>Materials Needed</h2>
+<table><thead><tr><th>Sheet Size</th><th>Qty</th></tr></thead><tbody>${materialsRows}</tbody></table>
+<h2>Cut List</h2>
+<table><thead><tr><th>Label</th><th>Width</th><th>Height</th><th class="num">Qty</th><th>Grain</th></tr></thead><tbody>${cutRows}</tbody></table>
+<h2>Sheet Layouts</h2>
+<div class="sheets">${sheetCards}</div>
+<script>window.addEventListener('load',()=>{window.print();});${'<'}/script>
+</body></html>`;
+
+		const win = window.open('', '_blank', 'width=900,height=700');
+		if (win) {
+			win.document.write(html);
+			win.document.close();
+		}
+	}
 
 	const PALETTE = [
 		'#93c5fd',
@@ -227,11 +374,11 @@
 	}
 
 	const inputCls =
-		'w-full px-2.5 py-1.5 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400';
+		'w-full px-2.5 py-2 sm:py-1.5 text-base sm:text-sm border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400';
 	const numCls =
-		'w-full px-2.5 py-1.5 text-sm text-right border border-zinc-200 rounded-lg bg-white text-zinc-900';
+		'w-full px-2.5 py-2 sm:py-1.5 text-base sm:text-sm text-right border border-zinc-200 rounded-lg bg-white text-zinc-900';
 	const smNumCls =
-		'w-24 px-2 py-1.5 text-sm text-right border border-zinc-200 rounded-lg bg-white text-zinc-900';
+		'w-24 px-2 py-2 sm:py-1.5 text-base sm:text-sm text-right border border-zinc-200 rounded-lg bg-white text-zinc-900';
 	const addBtnCls =
 		'mt-3 inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-500 hover:text-zinc-900';
 	const delCls =
@@ -325,7 +472,7 @@
 	/>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col bg-white">
+<div class="flex min-h-screen flex-col overflow-x-hidden bg-white">
 	<div class="mx-auto w-full max-w-3xl flex-1 px-6 lg:px-8">
 		<!-- Header -->
 		<header class="flex h-14 items-center justify-between border-b border-zinc-100">
@@ -337,7 +484,7 @@
 				<!-- Mobile settings button -->
 				<button
 					onclick={() => (settingsOpen = true)}
-					class="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 sm:hidden"
+					class="flex items-center gap-2 rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 sm:hidden"
 					aria-label="Open settings"
 				>
 					<svg
@@ -445,6 +592,7 @@
 						<div class="row mb-1 grid grid-cols-[1fr_1fr_1fr_1fr_2.5rem] items-center gap-2">
 							<input
 								type="number"
+								inputmode="decimal"
 								class={numCls}
 								min={dimMin}
 								step={dimStep}
@@ -452,6 +600,7 @@
 							/>
 							<input
 								type="number"
+								inputmode="decimal"
 								class={numCls}
 								min={dimMin}
 								step={dimStep}
@@ -459,6 +608,7 @@
 							/>
 							<input
 								type="number"
+								inputmode="numeric"
 								class={numCls}
 								min="0"
 								placeholder="∞"
@@ -521,6 +671,7 @@
 								<div class="grid grid-cols-4 gap-1.5 sm:contents">
 									<input
 										type="number"
+										inputmode="decimal"
 										class={numCls}
 										min={dimMin}
 										step={dimStep}
@@ -528,12 +679,19 @@
 									/>
 									<input
 										type="number"
+										inputmode="decimal"
 										class={numCls}
 										min={dimMin}
 										step={dimStep}
 										bind:value={panel.height}
 									/>
-									<input type="number" class={numCls} min="1" bind:value={panel.quantity} />
+									<input
+										type="number"
+										inputmode="numeric"
+										class={numCls}
+										min="1"
+										bind:value={panel.quantity}
+									/>
 									<select class={inputCls} bind:value={panel.grain}>
 										<option value="any">Any</option>
 										<option value="horizontal">Horiz →</option>
@@ -572,7 +730,14 @@
 				<!-- Results -->
 				{#if sheets.length > 0}
 					<section>
-						<p class="mb-3 text-sm font-semibold text-zinc-800">Results</p>
+						<div class="mb-3 flex items-center justify-between">
+							<p class="text-sm font-semibold text-zinc-800">Results</p>
+							<button
+								onclick={printPlan}
+								class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:border-zinc-500 hover:text-zinc-900"
+								>Print / PDF</button
+							>
+						</div>
 						<div class="mb-8 flex flex-wrap gap-2">
 							{#each sheetSummary as row (`${row.w}×${row.h}`)}
 								<div
@@ -583,9 +748,31 @@
 								</div>
 							{/each}
 						</div>
+						<div class="mb-3 flex items-center gap-1.5">
+							<button
+								onclick={() => (sheetZoom = Math.max(0.25, sheetZoom - 0.25))}
+								class="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-base leading-none text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+								aria-label="Zoom out">−</button
+							>
+							<span class="w-10 text-center text-xs text-zinc-500"
+								>{Math.round(sheetZoom * 100)}%</span
+							>
+							<button
+								onclick={() => (sheetZoom = Math.min(4, sheetZoom + 0.25))}
+								class="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-base leading-none text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+								aria-label="Zoom in">+</button
+							>
+							{#if sheetZoom !== 1}
+								<button
+									onclick={() => (sheetZoom = 1)}
+									class="ml-1 rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900"
+									>Reset</button
+								>
+							{/if}
+						</div>
 						<div class="flex flex-wrap gap-4">
 							{#each sheets as sheet (sheet.index)}
-								{@const sc = svgScale(sheet.sheetWidth, sheet.sheetHeight)}
+								{@const sc = svgScale(sheet.sheetWidth, sheet.sheetHeight) * sheetZoom}
 								{@const svgW = sheet.sheetWidth * sc}
 								{@const svgH = sheet.sheetHeight * sc}
 								{@const sheetIsHoriz = sheet.grain === 'horizontal'}
@@ -596,9 +783,10 @@
 										Sheet {sheet.index + 1} · {sheet.sheetWidth}×{sheet.sheetHeight}{unitLabel}
 									</p>
 									<svg
+										viewBox="0 0 {svgW} {svgH}"
 										width={svgW}
 										height={svgH}
-										style="display:block;border-radius:8px;overflow:hidden"
+										style="display:block;border-radius:8px;overflow:hidden;max-width:100%;height:auto"
 									>
 										<rect width={svgW} height={svgH} fill="#f4f4f5" />
 										{#each [...Array(grainCount).keys()] as i (i)}
@@ -630,6 +818,8 @@
 											{@const py = p.y * sc}
 											{@const pw = p.width * sc}
 											{@const ph = p.height * sc}
+											{@const dispW = p.rotated ? p.height : p.width}
+											{@const dispH = p.rotated ? p.width : p.height}
 											<rect
 												x={px}
 												y={py}
@@ -672,44 +862,46 @@
 													{/if}
 												{/each}
 											{/if}
-											{#if pw > 30 && ph > 18}
-												{@const dispW = p.rotated ? p.height : p.width}
-												{@const dispH = p.rotated ? p.width : p.height}
-												{@const fs = Math.min(11, pw / 5, ph / 3)}
-												{@const dimStr = `${dispW}×${dispH}${unitLabel}`}
-												{#if p.label}
-													<text
-														x={px + pw / 2}
-														y={py + ph / 2 - fs * 0.7}
-														text-anchor="middle"
-														dominant-baseline="middle"
-														font-size={fs}
-														fill="#18181b"
-														font-family="system-ui,sans-serif"
-														font-weight="500">{p.label}{p.rotated ? ' ↺' : ''}</text
-													>
-													<text
-														x={px + pw / 2}
-														y={py + ph / 2 + fs * 0.8}
-														text-anchor="middle"
-														dominant-baseline="middle"
-														font-size={Math.max(7, fs - 2)}
-														fill="#18181b"
-														font-family="system-ui,sans-serif"
-														opacity="0.6">{dimStr}</text
-													>
-												{:else}
-													<text
-														x={px + pw / 2}
-														y={py + ph / 2}
-														text-anchor="middle"
-														dominant-baseline="middle"
-														font-size={fs}
-														fill="#18181b"
-														font-family="system-ui,sans-serif"
-														font-weight="500">{dimStr}{p.rotated ? ' ↺' : ''}</text
-													>
-												{/if}
+											{#if pw > 16}
+												{@const wfs = Math.max(6, Math.min(9 * sheetZoom, pw / 6))}
+												<text
+													x={px + pw / 2}
+													y={py + 3}
+													text-anchor="middle"
+													dominant-baseline="hanging"
+													font-size={wfs}
+													fill="#18181b"
+													font-family="system-ui,sans-serif"
+													opacity="0.75">{dispW}{unitLabel}</text
+												>
+											{/if}
+											{#if ph > 20}
+												{@const hfs = Math.max(6, Math.min(9 * sheetZoom, ph / 6))}
+												{@const hx = px + Math.ceil(hfs / 2) + 2}
+												<text
+													x={hx}
+													y={py + ph / 2}
+													text-anchor="middle"
+													dominant-baseline="middle"
+													font-size={hfs}
+													fill="#18181b"
+													font-family="system-ui,sans-serif"
+													opacity="0.75"
+													transform="rotate(-90 {hx} {py + ph / 2})">{dispH}{unitLabel}</text
+												>
+											{/if}
+											{#if pw > 30 && ph > 18 && p.label}
+												{@const fs = Math.min(11 * sheetZoom, pw / 5, ph / 3)}
+												<text
+													x={px + pw / 2}
+													y={py + ph / 2}
+													text-anchor="middle"
+													dominant-baseline="middle"
+													font-size={fs}
+													fill="#18181b"
+													font-family="system-ui,sans-serif"
+													font-weight="500">{p.label}{p.rotated ? ' ↺' : ''}</text
+												>
 											{/if}
 										{/each}
 									</svg>
@@ -735,6 +927,7 @@
 						<div class="row mb-1 grid grid-cols-[1fr_1fr_2.5rem] items-center gap-2">
 							<input
 								type="number"
+								inputmode="decimal"
 								class={numCls}
 								min={dimMin}
 								step={dimStep}
@@ -742,6 +935,7 @@
 							/>
 							<input
 								type="number"
+								inputmode="numeric"
 								class={numCls}
 								min="0"
 								placeholder="∞"
@@ -779,12 +973,19 @@
 								</div>
 								<input
 									type="number"
+									inputmode="decimal"
 									class={numCls}
 									min={dimMin}
 									step={dimStep}
 									bind:value={lp.length}
 								/>
-								<input type="number" class={numCls} min="1" bind:value={lp.quantity} />
+								<input
+									type="number"
+									inputmode="numeric"
+									class={numCls}
+									min="1"
+									bind:value={lp.quantity}
+								/>
 								<button onclick={() => removeLinearPiece(lp.id)} class={delCls}>×</button>
 							</div>
 						{/each}
