@@ -639,7 +639,12 @@
 												rx="2"
 											/>
 											{#if p.grain !== 'any' && pw > 8 && ph > 8}
-												{@const isHoriz = p.grain === 'horizontal'}
+												{@const effectiveGrain = p.rotated
+													? p.grain === 'horizontal'
+														? 'vertical'
+														: 'horizontal'
+													: p.grain}
+												{@const isHoriz = effectiveGrain === 'horizontal'}
 												{@const span = isHoriz ? ph : pw}
 												{@const count = Math.max(1, Math.floor(span / 10) - 1)}
 												{#each [...Array(count).keys()] as i (i)}
