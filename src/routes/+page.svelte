@@ -786,7 +786,7 @@ tbody tr:last-child td{border-bottom:none}
 										viewBox="0 0 {svgW} {svgH}"
 										width={svgW}
 										height={svgH}
-										style="display:block;border-radius:8px;overflow:hidden;max-width:100%;height:auto"
+										style="display:block;overflow:hidden;max-width:100%;height:auto"
 									>
 										<rect width={svgW} height={svgH} fill="#f4f4f5" />
 										{#each [...Array(grainCount).keys()] as i (i)}
