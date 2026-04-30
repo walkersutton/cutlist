@@ -66,14 +66,14 @@ export function packLinear(
 	const unplaced: UnplacedPiece[] = [];
 
 	function fitsInAnyStock(pieceLength: number): boolean {
-		return validStocks.some((s) => s.length >= pieceLength + kerf);
+		return validStocks.some((s) => s.length >= pieceLength);
 	}
 
 	function chooseBestStock(pieceLength: number): LinearStock | null {
 		let best: { stock: LinearStock; length: number } | null = null;
 		for (const stock of validStocks) {
 			if ((remaining.get(stock.id) ?? 0) <= 0) continue;
-			if (stock.length >= pieceLength + kerf) {
+			if (stock.length >= pieceLength) {
 				if (!best || stock.length < best.length) best = { stock, length: stock.length };
 			}
 		}
@@ -88,7 +88,7 @@ export function packLinear(
 		let bestRemaining = Infinity;
 		for (const board of openBoards) {
 			const rem = board.stock.length - board.usedLength;
-			if (rem >= needed && rem < bestRemaining) {
+			if (rem >= piece.length && rem < bestRemaining) {
 				bestBoard = board;
 				bestRemaining = rem;
 			}

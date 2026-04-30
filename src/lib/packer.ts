@@ -199,7 +199,7 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): P
 	function fitsInAnyType(panel: PanelInput): boolean {
 		return validTypes.some((type) => {
 			const orientations = allowedOrientations(panel, type);
-			return orientations.some(({ w, h }) => type.width >= w + kerf && type.height >= h + kerf);
+			return orientations.some(({ w, h }) => type.width >= w && type.height >= h);
 		});
 	}
 
@@ -209,7 +209,7 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): P
 			if ((remaining.get(type.id) ?? 0) <= 0) continue;
 			const orientations = allowedOrientations(panel, type);
 			for (const { w, h } of orientations) {
-				if (type.width >= w + kerf && type.height >= h + kerf) {
+				if (type.width >= w && type.height >= h) {
 					const area = type.width * type.height;
 					if (!best || area < best.area) best = { type, area };
 					break;
@@ -220,14 +220,12 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): P
 	}
 
 	for (const { panel } of pieces) {
-		// Find best placement across all open sheets (search with kerf-padded size)
 		let best: { sheet: OpenSheet; rect: Rect; rotated: boolean; score: number } | null = null;
 		for (const sheet of openSheets) {
 			const orientations = allowedOrientations(panel, sheet.type);
 			for (const { w, h, rotated } of orientations) {
-				const candidate = tryPlace(sheet.freeRects, w + kerf, h + kerf);
+				const candidate = tryPlace(sheet.freeRects, w, h);
 				if (candidate && (!best || candidate.score < best.score)) {
-					// store actual panel size in rect (kerf reserved separately during split)
 					best = {
 						sheet,
 						rect: { x: candidate.rect.x, y: candidate.rect.y, width: w, height: h },
@@ -260,7 +258,7 @@ export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): P
 
 		const orientations = allowedOrientations(panel, type);
 		for (const { w, h, rotated } of orientations) {
-			const candidate = tryPlace(newSheet.freeRects, w + kerf, h + kerf);
+			const candidate = tryPlace(newSheet.freeRects, w, h);
 			if (candidate) {
 				applyPlacement(
 					newSheet,

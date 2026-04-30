@@ -672,17 +672,44 @@
 													{/if}
 												{/each}
 											{/if}
-											{#if pw > 24 && ph > 12}
-												<text
-													x={px + pw / 2}
-													y={py + ph / 2}
-													text-anchor="middle"
-													dominant-baseline="middle"
-													font-size={Math.min(11, pw / 4, ph / 2)}
-													fill="#18181b"
-													font-family="system-ui,sans-serif"
-													font-weight="500">{p.label || '?'}{p.rotated ? ' ↺' : ''}</text
-												>
+											{#if pw > 30 && ph > 18}
+												{@const dispW = p.rotated ? p.height : p.width}
+												{@const dispH = p.rotated ? p.width : p.height}
+												{@const fs = Math.min(11, pw / 5, ph / 3)}
+												{@const dimStr = `${dispW}×${dispH}${unitLabel}`}
+												{#if p.label}
+													<text
+														x={px + pw / 2}
+														y={py + ph / 2 - fs * 0.7}
+														text-anchor="middle"
+														dominant-baseline="middle"
+														font-size={fs}
+														fill="#18181b"
+														font-family="system-ui,sans-serif"
+														font-weight="500">{p.label}{p.rotated ? ' ↺' : ''}</text
+													>
+													<text
+														x={px + pw / 2}
+														y={py + ph / 2 + fs * 0.8}
+														text-anchor="middle"
+														dominant-baseline="middle"
+														font-size={Math.max(7, fs - 2)}
+														fill="#18181b"
+														font-family="system-ui,sans-serif"
+														opacity="0.6">{dimStr}</text
+													>
+												{:else}
+													<text
+														x={px + pw / 2}
+														y={py + ph / 2}
+														text-anchor="middle"
+														dominant-baseline="middle"
+														font-size={fs}
+														fill="#18181b"
+														font-family="system-ui,sans-serif"
+														font-weight="500">{dimStr}{p.rotated ? ' ↺' : ''}</text
+													>
+												{/if}
 											{/if}
 										{/each}
 									</svg>
