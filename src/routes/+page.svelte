@@ -209,6 +209,8 @@
 		return Math.min(SVG_MAX / w, SVG_MAX / h);
 	}
 	let sheetZoom = $state(1.0);
+	let hasResults = $derived(sheets.length > 0);
+	let shareOpen = $state(false);
 
 	function printPlan() {
 		const ule = unit === 'in' ? '&quot;' : ' mm';
@@ -356,6 +358,49 @@ tbody tr:last-child td{border-bottom:none}
 		}
 	}
 
+	let copyLabel = $state('Copy text');
+	async function copyPlan() {
+		const ul = unit === 'in' ? '"' : ' mm';
+		const lines: string[] = [];
+
+		lines.push(
+			`Cut Plan — ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`
+		);
+		lines.push(`Kerf: ${kerf}${ul}`);
+
+		lines.push('');
+		lines.push('MATERIALS');
+		for (const row of sheetSummary) {
+			lines.push(`  ${row.count}× ${row.w}×${row.h}${ul}`);
+		}
+
+		lines.push('');
+		lines.push('CUT LIST');
+		for (const p of panels.filter((p) => p.width > 0 && p.height > 0 && p.quantity > 0)) {
+			const name = p.label ? `${p.label}  ` : '';
+			lines.push(`  ${name}${p.width}×${p.height}${ul}  ×${p.quantity}  grain: ${p.grain}`);
+		}
+
+		lines.push('');
+		lines.push('SHEET LAYOUTS');
+		for (const sheet of sheets) {
+			lines.push(
+				`  Sheet ${sheet.index + 1} — ${sheet.sheetWidth}×${sheet.sheetHeight}${ul}  (${sheet.wastePercent}% waste)`
+			);
+			for (const p of sheet.placements) {
+				const dw = p.rotated ? p.height : p.width;
+				const dh = p.rotated ? p.width : p.height;
+				const name = p.label ? `${p.label}  ` : '';
+				const rot = p.rotated ? '  ↺' : '';
+				lines.push(`    ${name}${dw}×${dh}${ul}${rot}`);
+			}
+		}
+
+		await navigator.clipboard.writeText(lines.join('\n'));
+		copyLabel = 'Copied!';
+		setTimeout(() => (copyLabel = 'Copy text'), 2000);
+	}
+
 	const PALETTE = [
 		'#93c5fd',
 		'#86efac',
@@ -473,39 +518,12 @@ tbody tr:last-child td{border-bottom:none}
 </svelte:head>
 
 <div class="flex min-h-screen flex-col overflow-x-hidden bg-white">
-	<div class="mx-auto w-full max-w-3xl flex-1 px-6 lg:px-8">
+	<div class="mx-auto w-full max-w-3xl flex-1 px-6 pb-24 sm:pb-0 lg:px-8">
 		<!-- Header -->
 		<header class="flex h-14 items-center justify-between border-b border-zinc-100">
 			<div class="flex items-center gap-1">
 				<img src="/logo.jpg" alt="cutlist logo" class="h-8 w-8" />
 				<h1 class="shrink-0 text-xl font-semibold tracking-tight text-zinc-900">cutlist</h1>
-			</div>
-			<div class="flex items-center gap-3">
-				<!-- Mobile settings button -->
-				<button
-					onclick={() => (settingsOpen = true)}
-					class="flex items-center gap-2 rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 sm:hidden"
-					aria-label="Open settings"
-				>
-					<svg
-						width="14"
-						height="14"
-						viewBox="0 0 14 14"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						stroke-linecap="round"
-						aria-hidden="true"
-					>
-						<line x1="1" y1="3.5" x2="13" y2="3.5" />
-						<line x1="1" y1="7" x2="13" y2="7" />
-						<line x1="1" y1="10.5" x2="13" y2="10.5" />
-						<circle cx="4.5" cy="3.5" r="1.5" fill="white" />
-						<circle cx="9.5" cy="7" r="1.5" fill="white" />
-						<circle cx="6" cy="10.5" r="1.5" fill="white" />
-					</svg>
-					{mode === 'sheet' ? 'Sheet' : 'Linear'} · {unit}
-				</button>
 			</div>
 		</header>
 
@@ -669,34 +687,46 @@ tbody tr:last-child td{border-bottom:none}
 								</div>
 								<!-- Dimensions: 4-col grid on mobile, sm:contents makes them grid cells on desktop -->
 								<div class="grid grid-cols-4 gap-1.5 sm:contents">
-									<input
-										type="number"
-										inputmode="decimal"
-										class={numCls}
-										min={dimMin}
-										step={dimStep}
-										bind:value={panel.width}
-									/>
-									<input
-										type="number"
-										inputmode="decimal"
-										class={numCls}
-										min={dimMin}
-										step={dimStep}
-										bind:value={panel.height}
-									/>
-									<input
-										type="number"
-										inputmode="numeric"
-										class={numCls}
-										min="1"
-										bind:value={panel.quantity}
-									/>
-									<select class={inputCls} bind:value={panel.grain}>
-										<option value="any">Any</option>
-										<option value="horizontal">Horiz →</option>
-										<option value="vertical">Vert ↑</option>
-									</select>
+									<label class="sm:contents">
+										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">W ({unit})</span>
+										<input
+											type="number"
+											inputmode="decimal"
+											class={numCls}
+											min={dimMin}
+											step={dimStep}
+											bind:value={panel.width}
+										/>
+									</label>
+									<label class="sm:contents">
+										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">H ({unit})</span>
+										<input
+											type="number"
+											inputmode="decimal"
+											class={numCls}
+											min={dimMin}
+											step={dimStep}
+											bind:value={panel.height}
+										/>
+									</label>
+									<label class="sm:contents">
+										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">Qty</span>
+										<input
+											type="number"
+											inputmode="numeric"
+											class={numCls}
+											min="1"
+											bind:value={panel.quantity}
+										/>
+									</label>
+									<label class="sm:contents">
+										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">Grain</span>
+										<select class={inputCls} bind:value={panel.grain}>
+											<option value="any">Any</option>
+											<option value="horizontal">Horiz →</option>
+											<option value="vertical">Vert ↑</option>
+										</select>
+									</label>
 								</div>
 								<!-- Delete: desktop only (last grid column) -->
 								<button onclick={() => removePanel(panel.id)} class="{delCls} hidden sm:flex"
@@ -732,11 +762,18 @@ tbody tr:last-child td{border-bottom:none}
 					<section>
 						<div class="mb-3 flex items-center justify-between">
 							<p class="text-sm font-semibold text-zinc-800">Results</p>
-							<button
-								onclick={printPlan}
-								class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:border-zinc-500 hover:text-zinc-900"
-								>Print / PDF</button
-							>
+							<div class="hidden items-center gap-2 sm:flex">
+								<button
+									onclick={copyPlan}
+									class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:border-zinc-500 hover:text-zinc-900"
+									>{copyLabel}</button
+								>
+								<button
+									onclick={printPlan}
+									class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:border-zinc-500 hover:text-zinc-900"
+									>Print / PDF</button
+								>
+							</div>
 						</div>
 						<div class="mb-8 flex flex-wrap gap-2">
 							{#each sheetSummary as row (`${row.w}×${row.h}`)}
@@ -1100,6 +1137,175 @@ tbody tr:last-child td{border-bottom:none}
 	</footer>
 </div>
 
+<!-- Bottom tab bar (mobile only) -->
+<nav
+	class="fixed right-0 bottom-0 left-0 z-30 border-t border-zinc-100 bg-white sm:hidden"
+	style="padding-bottom: env(safe-area-inset-bottom)"
+>
+	<div class="flex">
+		<button
+			onclick={() => (mode = 'sheet')}
+			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {mode === 'sheet'
+				? 'text-zinc-900'
+				: 'text-zinc-400'}"
+		>
+			<svg
+				width="22"
+				height="22"
+				viewBox="0 0 22 22"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<rect
+					x="2"
+					y="2"
+					width="8"
+					height="6"
+					rx="1"
+					fill={mode === 'sheet' ? 'currentColor' : 'none'}
+					opacity={mode === 'sheet' ? '0.15' : '1'}
+				/>
+				<rect x="2" y="2" width="8" height="6" rx="1" />
+				<rect
+					x="12"
+					y="2"
+					width="8"
+					height="6"
+					rx="1"
+					fill={mode === 'sheet' ? 'currentColor' : 'none'}
+					opacity={mode === 'sheet' ? '0.15' : '1'}
+				/>
+				<rect x="12" y="2" width="8" height="6" rx="1" />
+				<rect
+					x="2"
+					y="10"
+					width="8"
+					height="6"
+					rx="1"
+					fill={mode === 'sheet' ? 'currentColor' : 'none'}
+					opacity={mode === 'sheet' ? '0.15' : '1'}
+				/>
+				<rect x="2" y="10" width="8" height="6" rx="1" />
+				<rect
+					x="12"
+					y="10"
+					width="8"
+					height="6"
+					rx="1"
+					fill={mode === 'sheet' ? 'currentColor' : 'none'}
+					opacity={mode === 'sheet' ? '0.15' : '1'}
+				/>
+				<rect x="12" y="10" width="8" height="6" rx="1" />
+			</svg>
+			<span class="text-[11px] font-medium">Sheet</span>
+		</button>
+		<button
+			onclick={() => (mode = 'linear')}
+			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {mode === 'linear'
+				? 'text-zinc-900'
+				: 'text-zinc-400'}"
+		>
+			<svg
+				width="22"
+				height="22"
+				viewBox="0 0 22 22"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				aria-hidden="true"
+			>
+				<rect
+					x="2"
+					y="4"
+					width="18"
+					height="4"
+					rx="1"
+					fill={mode === 'linear' ? 'currentColor' : 'none'}
+					opacity={mode === 'linear' ? '0.15' : '1'}
+				/>
+				<rect x="2" y="4" width="18" height="4" rx="1" />
+				<rect
+					x="2"
+					y="10"
+					width="13"
+					height="4"
+					rx="1"
+					fill={mode === 'linear' ? 'currentColor' : 'none'}
+					opacity={mode === 'linear' ? '0.15' : '1'}
+				/>
+				<rect x="2" y="10" width="13" height="4" rx="1" />
+				<rect
+					x="2"
+					y="16"
+					width="16"
+					height="4"
+					rx="1"
+					fill={mode === 'linear' ? 'currentColor' : 'none'}
+					opacity={mode === 'linear' ? '0.15' : '1'}
+				/>
+				<rect x="2" y="16" width="16" height="4" rx="1" />
+			</svg>
+			<span class="text-[11px] font-medium">Linear</span>
+		</button>
+		<button
+			onclick={() => (shareOpen = true)}
+			disabled={!hasResults}
+			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {hasResults
+				? 'text-zinc-500'
+				: 'text-zinc-300'}"
+		>
+			<svg
+				width="22"
+				height="22"
+				viewBox="0 0 22 22"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M11 3v12M7 7l4-4 4 4" />
+				<path d="M5 13v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-5" />
+			</svg>
+			<span class="text-[11px] font-medium">Share</span>
+		</button>
+		<button
+			onclick={() => (settingsOpen = true)}
+			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {settingsOpen
+				? 'text-zinc-900'
+				: 'text-zinc-400'}"
+		>
+			<svg
+				width="22"
+				height="22"
+				viewBox="0 0 22 22"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				aria-hidden="true"
+			>
+				<line x1="3" y1="6" x2="19" y2="6" />
+				<line x1="3" y1="11" x2="19" y2="11" />
+				<line x1="3" y1="16" x2="19" y2="16" />
+				<circle cx="8" cy="6" r="2.2" fill="white" />
+				<circle cx="8" cy="6" r="2.2" />
+				<circle cx="14" cy="11" r="2.2" fill="white" />
+				<circle cx="14" cy="11" r="2.2" />
+				<circle cx="9" cy="16" r="2.2" fill="white" />
+				<circle cx="9" cy="16" r="2.2" />
+			</svg>
+			<span class="text-[11px] font-medium">Settings</span>
+		</button>
+	</div>
+</nav>
+
 <!-- Settings drawer (mobile only) -->
 {#if settingsOpen}
 	<!-- Backdrop -->
@@ -1122,23 +1328,6 @@ tbody tr:last-child td{border-bottom:none}
 		<div class="mx-auto mb-6 h-1.5 w-10 rounded-full bg-zinc-200"></div>
 
 		<div class="space-y-6">
-			<!-- Mode -->
-			<div class="flex items-center justify-between">
-				<span class="text-sm font-medium text-zinc-700">Mode</span>
-				<div class="flex items-center gap-0.5 rounded-full bg-zinc-100 p-0.5">
-					<button
-						onclick={() => (mode = 'sheet')}
-						class={`drawer-toggle rounded-full px-4 py-1.5 text-sm font-medium ${mode === 'sheet' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'}`}
-						>Sheet</button
-					>
-					<button
-						onclick={() => (mode = 'linear')}
-						class={`drawer-toggle rounded-full px-4 py-1.5 text-sm font-medium ${mode === 'linear' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'}`}
-						>Linear</button
-					>
-				</div>
-			</div>
-
 			<!-- Unit -->
 			<div class="flex items-center justify-between">
 				<span class="text-sm font-medium text-zinc-700">Unit</span>
@@ -1198,6 +1387,82 @@ tbody tr:last-child td{border-bottom:none}
 					Reset everything
 				</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Share action sheet (mobile only) -->
+{#if shareOpen}
+	<div
+		class="fixed inset-0 z-40 bg-black/40 sm:hidden"
+		transition:fade={{ duration: 200 }}
+		onclick={() => (shareOpen = false)}
+		role="presentation"
+	></div>
+	<div
+		class="fixed right-0 bottom-0 left-0 z-50 rounded-t-2xl bg-white px-6 pt-4 pb-10 sm:hidden"
+		transition:fly={{ y: 200, duration: 280, easing: cubicOut }}
+		role="dialog"
+		aria-modal="true"
+		aria-label="Share"
+	>
+		<div class="mx-auto mb-6 h-1.5 w-10 rounded-full bg-zinc-200"></div>
+		<div class="space-y-2">
+			<button
+				onclick={() => {
+					printPlan();
+					shareOpen = false;
+				}}
+				class="flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-left text-zinc-800 hover:bg-zinc-50 active:bg-zinc-100"
+			>
+				<svg
+					width="20"
+					height="20"
+					viewBox="0 0 22 22"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.6"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="shrink-0 text-zinc-500"
+					aria-hidden="true"
+				>
+					<path d="M6 7V3h10v4" />
+					<rect x="2" y="7" width="18" height="8" rx="1.5" />
+					<path d="M6 11h1M6 15h10v4H6z" />
+				</svg>
+				<div>
+					<p class="text-sm font-medium">Print / PDF</p>
+					<p class="text-xs text-zinc-400">Opens print dialog</p>
+				</div>
+			</button>
+			<button
+				onclick={async () => {
+					await copyPlan();
+					shareOpen = false;
+				}}
+				class="flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-left text-zinc-800 hover:bg-zinc-50 active:bg-zinc-100"
+			>
+				<svg
+					width="20"
+					height="20"
+					viewBox="0 0 22 22"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.6"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="shrink-0 text-zinc-500"
+					aria-hidden="true"
+				>
+					<rect x="8" y="8" width="11" height="13" rx="1.5" />
+					<path d="M14 8V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h4" />
+				</svg>
+				<div>
+					<p class="text-sm font-medium">Copy as text</p>
+					<p class="text-xs text-zinc-400">Paste into any app</p>
+				</div>
+			</button>
 		</div>
 	</div>
 {/if}
