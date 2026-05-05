@@ -351,11 +351,13 @@ tbody tr:last-child td{border-bottom:none}
 <script>window.addEventListener('load',()=>{window.print();});${'<'}/script>
 </body></html>`;
 
-		const win = window.open('', '_blank', 'width=900,height=700');
-		if (win) {
-			win.document.write(html);
-			win.document.close();
-		}
+		const iframe = document.createElement('iframe');
+		iframe.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden';
+		document.body.appendChild(iframe);
+		iframe.contentDocument!.write(html);
+		iframe.contentDocument!.close();
+		iframe.contentWindow!.addEventListener('afterprint', () => iframe.remove());
+		iframe.contentWindow!.print();
 	}
 
 	let copyLabel = $state('Copy text');
@@ -374,25 +376,115 @@ tbody tr:last-child td{border-bottom:none}
 			lines.push(`  ${row.count}× ${row.w}×${row.h}${ul}`);
 		}
 
+		function grainArrow(grain: string) {
+			if (grain === 'horizontal') return 'grain →';
+			if (grain === 'vertical') return 'grain ↑';
+			return '';
+		}
+
+		function asciiSheetDiagram(sheet: (typeof sheets)[0]): string[] {
+			const CW = 40;
+			const scX = CW / sheet.sheetWidth;
+			const scY = scX * 0.5;
+			const CH = Math.min(40, Math.max(4, Math.ceil(sheet.sheetHeight * scY)));
+			const grid: string[][] = Array.from({ length: CH }, () => Array(CW).fill(' '));
+
+			for (const p of sheet.placements) {
+				const x1 = Math.floor(p.x * scX);
+				const y1 = Math.floor(p.y * scY);
+				const x2 = Math.min(CW - 1, Math.ceil((p.x + p.width) * scX));
+				const y2 = Math.min(CH - 1, Math.ceil((p.y + p.height) * scY));
+				const eg =
+					p.grain === 'any'
+						? 'any'
+						: p.rotated
+							? p.grain === 'horizontal'
+								? 'vertical'
+								: 'horizontal'
+							: p.grain;
+
+				for (let r = y1 + 1; r < y2; r++) {
+					for (let c = x1 + 1; c < x2; c++) {
+						if (eg === 'vertical' && (c - x1) % 2 === 1) grid[r][c] = '|';
+						else if (eg === 'horizontal' && (r - y1) % 2 === 1) grid[r][c] = '-';
+					}
+				}
+				for (let c = x1; c <= x2 && c < CW; c++) {
+					if (y1 < CH) grid[y1][c] = '-';
+					if (y2 < CH) grid[y2][c] = '-';
+				}
+				for (let r = y1 + 1; r < y2; r++) {
+					if (r < CH) {
+						grid[r][x1] = '|';
+						if (x2 < CW) grid[r][x2] = '|';
+					}
+				}
+				if (y1 < CH) {
+					grid[y1][x1] = '+';
+					if (x2 < CW) grid[y1][x2] = '+';
+				}
+				if (y2 < CH) {
+					grid[y2][x1] = '+';
+					if (x2 < CW) grid[y2][x2] = '+';
+				}
+
+				const dw = p.rotated ? p.height : p.width;
+				const dh = p.rotated ? p.width : p.height;
+				const innerW = x2 - x1 - 2;
+				if (innerW > 0) {
+					const lbl = (p.label || `${dw}×${dh}${ul}`).slice(0, innerW);
+					const midR = Math.round((y1 + y2) / 2);
+					if (midR > y1 && midR < y2) {
+						const startC = x1 + 1 + Math.floor((innerW - lbl.length) / 2);
+						for (let i = 0; i < lbl.length; i++) {
+							const c = startC + i;
+							if (c > x1 && c < x2 && c < CW) grid[midR][c] = lbl[i];
+						}
+					}
+				}
+			}
+
+			return [
+				'+' + '-'.repeat(CW) + '+',
+				...grid.map((row) => '|' + row.join('') + '|'),
+				'+' + '-'.repeat(CW) + '+'
+			].map((l) => '  ' + l);
+		}
+
 		lines.push('');
 		lines.push('CUT LIST');
 		for (const p of panels.filter((p) => p.width > 0 && p.height > 0 && p.quantity > 0)) {
 			const name = p.label ? `${p.label}  ` : '';
-			lines.push(`  ${name}${p.width}×${p.height}${ul}  ×${p.quantity}  grain: ${p.grain}`);
+			const g = grainArrow(p.grain);
+			lines.push(`  ${name}${p.width}×${p.height}${ul}  ×${p.quantity}${g ? `  ${g}` : ''}`);
 		}
 
 		lines.push('');
 		lines.push('SHEET LAYOUTS');
+		lines.push('  (| = vertical grain  - = horizontal grain)');
 		for (const sheet of sheets) {
+			lines.push('');
 			lines.push(
-				`  Sheet ${sheet.index + 1} — ${sheet.sheetWidth}×${sheet.sheetHeight}${ul}  (${sheet.wastePercent}% waste)`
+				`  Sheet ${sheet.index + 1} — ${sheet.sheetWidth}×${sheet.sheetHeight}${ul}  ${grainArrow(sheet.grain) || 'any grain'}`
 			);
 			for (const p of sheet.placements) {
 				const dw = p.rotated ? p.height : p.width;
 				const dh = p.rotated ? p.width : p.height;
 				const name = p.label ? `${p.label}  ` : '';
-				const rot = p.rotated ? '  ↺' : '';
-				lines.push(`    ${name}${dw}×${dh}${ul}${rot}`);
+				const rot = p.rotated ? ' ↺' : '';
+				const effectiveGrain =
+					p.grain === 'any'
+						? 'any'
+						: p.rotated
+							? p.grain === 'horizontal'
+								? 'vertical'
+								: 'horizontal'
+							: p.grain;
+				const g = grainArrow(effectiveGrain);
+				lines.push(`    ${name}${dw}×${dh}${ul}${rot}${g ? `  ${g}` : ''}`);
+			}
+			for (const diagramLine of asciiSheetDiagram(sheet)) {
+				lines.push(diagramLine);
 			}
 		}
 
@@ -599,7 +691,9 @@ tbody tr:last-child td{border-bottom:none}
 				<!-- Sheet Stock -->
 				<section>
 					<p class="mb-3 text-sm font-semibold text-zinc-800">Sheet Stock</p>
-					<div class="mb-2 grid grid-cols-[1fr_1fr_1fr_1fr_2.5rem] gap-2 text-xs text-zinc-500">
+					<div
+						class="mb-2 hidden gap-2 text-xs text-zinc-500 sm:grid sm:grid-cols-[1fr_1fr_1fr_1fr_2.5rem]"
+					>
 						<span>Width ({unit})</span>
 						<span>Height ({unit})</span>
 						<span>Qty (blank = ∞)</span>
@@ -607,39 +701,70 @@ tbody tr:last-child td{border-bottom:none}
 						<span></span>
 					</div>
 					{#each sheetTypes as st (st.id)}
-						<div class="row mb-1 grid grid-cols-[1fr_1fr_1fr_1fr_2.5rem] items-center gap-2">
-							<input
-								type="number"
-								inputmode="decimal"
-								class={numCls}
-								min={dimMin}
-								step={dimStep}
-								bind:value={st.width}
-							/>
-							<input
-								type="number"
-								inputmode="decimal"
-								class={numCls}
-								min={dimMin}
-								step={dimStep}
-								bind:value={st.height}
-							/>
-							<input
-								type="number"
-								inputmode="numeric"
-								class={numCls}
-								min="0"
-								placeholder="∞"
-								value={st.quantity || ''}
-								oninput={(e) => {
-									st.quantity = Number((e.target as HTMLInputElement).value) || 0;
-								}}
-							/>
-							<select class={inputCls} bind:value={st.grain}>
-								<option value="horizontal">Horiz →</option>
-								<option value="vertical">Vert ↑</option>
-							</select>
-							<button onclick={() => removeSheetType(st.id)} class={delCls}>×</button>
+						<div
+							class="row mb-2 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2.5 sm:mb-1 sm:grid sm:grid-cols-[1fr_1fr_1fr_1fr_2.5rem] sm:items-center sm:gap-2 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+						>
+							<div class="mb-2 grid grid-cols-2 gap-2 sm:contents">
+								<label class="flex items-center gap-1.5 sm:contents">
+									<span class="w-4 shrink-0 text-xs text-zinc-400 sm:hidden">W</span>
+									<input
+										type="number"
+										inputmode="decimal"
+										class="{numCls} min-w-0 flex-1"
+										min={dimMin}
+										step={dimStep}
+										bind:value={st.width}
+									/>
+								</label>
+								<label class="flex items-center gap-1.5 sm:contents">
+									<span class="w-4 shrink-0 text-xs text-zinc-400 sm:hidden">H</span>
+									<input
+										type="number"
+										inputmode="decimal"
+										class="{numCls} min-w-0 flex-1"
+										min={dimMin}
+										step={dimStep}
+										bind:value={st.height}
+									/>
+								</label>
+							</div>
+							<div class="flex items-center gap-1.5 sm:contents">
+								<button
+									type="button"
+									onclick={() => {
+										if (st.quantity > 0) st.quantity -= 1;
+									}}
+									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 active:bg-zinc-100 sm:hidden"
+									>−</button
+								>
+								<input
+									type="number"
+									inputmode="numeric"
+									class="{numCls} min-w-0 flex-1"
+									min="0"
+									placeholder="∞"
+									value={st.quantity || ''}
+									oninput={(e) => {
+										st.quantity = Number((e.target as HTMLInputElement).value) || 0;
+									}}
+								/>
+								<button
+									type="button"
+									onclick={() => {
+										st.quantity += 1;
+									}}
+									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 active:bg-zinc-100 sm:hidden"
+									>+</button
+								>
+								<select class="{inputCls} min-w-0 flex-1 sm:flex-none" bind:value={st.grain}>
+									<option value="horizontal">Horiz →</option>
+									<option value="vertical">Vert ↑</option>
+								</select>
+								<button onclick={() => removeSheetType(st.id)} class="{delCls} sm:hidden">×</button>
+							</div>
+							<button onclick={() => removeSheetType(st.id)} class="{delCls} hidden sm:flex"
+								>×</button
+							>
 						</div>
 					{/each}
 					<button onclick={addSheetType} class={addBtnCls}>+ Add sheet size</button>
@@ -661,16 +786,10 @@ tbody tr:last-child td{border-bottom:none}
 							<span></span>
 						</div>
 						{#each panels as panel (panel.id)}
-							<!--
-							Mobile:  [● label ..................... ×]
-							         [width] [height] [qty] [grain]
-							Desktop: [● label] [width] [height] [qty] [grain] [×]  (6-col grid)
-						-->
 							<div
-								class="row mb-3 sm:mb-1 sm:grid sm:grid-cols-[minmax(0,1.5fr)_1fr_1fr_3.5rem_1fr_2.5rem] sm:items-center sm:gap-2"
+								class="row mb-2 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2.5 sm:mb-1 sm:grid sm:grid-cols-[minmax(0,1.5fr)_1fr_1fr_3.5rem_1fr_2.5rem] sm:items-center sm:gap-2 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
 							>
-								<!-- Label row (flex on mobile, first grid cell on desktop) -->
-								<div class="mb-1.5 flex items-center gap-2 sm:mb-0">
+								<div class="mb-2 flex items-center gap-2 sm:mb-0">
 									<span
 										class="h-2 w-2 shrink-0 rounded-full"
 										style="background:{panelColor(panel.id)}"
@@ -681,54 +800,66 @@ tbody tr:last-child td{border-bottom:none}
 										placeholder="Label"
 										bind:value={panel.label}
 									/>
-									<!-- Delete: mobile only (inline with label) -->
 									<button onclick={() => removePanel(panel.id)} class="{delCls} sm:hidden">×</button
 									>
 								</div>
-								<!-- Dimensions: 4-col grid on mobile, sm:contents makes them grid cells on desktop -->
-								<div class="grid grid-cols-4 gap-1.5 sm:contents">
-									<label class="sm:contents">
-										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">W ({unit})</span>
+								<div class="grid grid-cols-2 gap-2 sm:contents">
+									<label class="flex items-center gap-1.5 sm:contents">
+										<span class="w-4 shrink-0 text-xs text-zinc-400 sm:hidden">W</span>
 										<input
 											type="number"
 											inputmode="decimal"
-											class={numCls}
+											class="{numCls} min-w-0 flex-1"
 											min={dimMin}
 											step={dimStep}
 											bind:value={panel.width}
 										/>
 									</label>
-									<label class="sm:contents">
-										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">H ({unit})</span>
+									<label class="flex items-center gap-1.5 sm:contents">
+										<span class="w-4 shrink-0 text-xs text-zinc-400 sm:hidden">H</span>
 										<input
 											type="number"
 											inputmode="decimal"
-											class={numCls}
+											class="{numCls} min-w-0 flex-1"
 											min={dimMin}
 											step={dimStep}
 											bind:value={panel.height}
 										/>
 									</label>
-									<label class="sm:contents">
-										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">Qty</span>
+									<label class="flex items-center gap-1 sm:contents">
+										<span class="w-4 shrink-0 text-xs text-zinc-400 sm:hidden">×</span>
+										<button
+											type="button"
+											onclick={() => {
+												if (panel.quantity > 1) panel.quantity -= 1;
+											}}
+											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 active:bg-zinc-100 sm:hidden"
+											>−</button
+										>
 										<input
 											type="number"
 											inputmode="numeric"
-											class={numCls}
+											class="{numCls} min-w-0 flex-1"
 											min="1"
 											bind:value={panel.quantity}
 										/>
+										<button
+											type="button"
+											onclick={() => {
+												panel.quantity += 1;
+											}}
+											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 active:bg-zinc-100 sm:hidden"
+											>+</button
+										>
 									</label>
-									<label class="sm:contents">
-										<span class="mb-0.5 block text-xs text-zinc-400 sm:hidden">Grain</span>
-										<select class={inputCls} bind:value={panel.grain}>
-											<option value="any">Any</option>
+									<label class="flex items-center sm:contents">
+										<select class="{inputCls} w-full min-w-0" bind:value={panel.grain}>
+											<option value="any">Any ↕↔</option>
 											<option value="horizontal">Horiz →</option>
 											<option value="vertical">Vert ↑</option>
 										</select>
 									</label>
 								</div>
-								<!-- Delete: desktop only (last grid column) -->
 								<button onclick={() => removePanel(panel.id)} class="{delCls} hidden sm:flex"
 									>×</button
 								>
@@ -1144,115 +1275,6 @@ tbody tr:last-child td{border-bottom:none}
 >
 	<div class="flex">
 		<button
-			onclick={() => (mode = 'sheet')}
-			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {mode === 'sheet'
-				? 'text-zinc-900'
-				: 'text-zinc-400'}"
-		>
-			<svg
-				width="22"
-				height="22"
-				viewBox="0 0 22 22"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				aria-hidden="true"
-			>
-				<rect
-					x="2"
-					y="2"
-					width="8"
-					height="6"
-					rx="1"
-					fill={mode === 'sheet' ? 'currentColor' : 'none'}
-					opacity={mode === 'sheet' ? '0.15' : '1'}
-				/>
-				<rect x="2" y="2" width="8" height="6" rx="1" />
-				<rect
-					x="12"
-					y="2"
-					width="8"
-					height="6"
-					rx="1"
-					fill={mode === 'sheet' ? 'currentColor' : 'none'}
-					opacity={mode === 'sheet' ? '0.15' : '1'}
-				/>
-				<rect x="12" y="2" width="8" height="6" rx="1" />
-				<rect
-					x="2"
-					y="10"
-					width="8"
-					height="6"
-					rx="1"
-					fill={mode === 'sheet' ? 'currentColor' : 'none'}
-					opacity={mode === 'sheet' ? '0.15' : '1'}
-				/>
-				<rect x="2" y="10" width="8" height="6" rx="1" />
-				<rect
-					x="12"
-					y="10"
-					width="8"
-					height="6"
-					rx="1"
-					fill={mode === 'sheet' ? 'currentColor' : 'none'}
-					opacity={mode === 'sheet' ? '0.15' : '1'}
-				/>
-				<rect x="12" y="10" width="8" height="6" rx="1" />
-			</svg>
-			<span class="text-[11px] font-medium">Sheet</span>
-		</button>
-		<button
-			onclick={() => (mode = 'linear')}
-			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {mode === 'linear'
-				? 'text-zinc-900'
-				: 'text-zinc-400'}"
-		>
-			<svg
-				width="22"
-				height="22"
-				viewBox="0 0 22 22"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				stroke-linecap="round"
-				aria-hidden="true"
-			>
-				<rect
-					x="2"
-					y="4"
-					width="18"
-					height="4"
-					rx="1"
-					fill={mode === 'linear' ? 'currentColor' : 'none'}
-					opacity={mode === 'linear' ? '0.15' : '1'}
-				/>
-				<rect x="2" y="4" width="18" height="4" rx="1" />
-				<rect
-					x="2"
-					y="10"
-					width="13"
-					height="4"
-					rx="1"
-					fill={mode === 'linear' ? 'currentColor' : 'none'}
-					opacity={mode === 'linear' ? '0.15' : '1'}
-				/>
-				<rect x="2" y="10" width="13" height="4" rx="1" />
-				<rect
-					x="2"
-					y="16"
-					width="16"
-					height="4"
-					rx="1"
-					fill={mode === 'linear' ? 'currentColor' : 'none'}
-					opacity={mode === 'linear' ? '0.15' : '1'}
-				/>
-				<rect x="2" y="16" width="16" height="4" rx="1" />
-			</svg>
-			<span class="text-[11px] font-medium">Linear</span>
-		</button>
-		<button
 			onclick={() => (shareOpen = true)}
 			disabled={!hasResults}
 			class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors {hasResults
@@ -1328,6 +1350,29 @@ tbody tr:last-child td{border-bottom:none}
 		<div class="mx-auto mb-6 h-1.5 w-10 rounded-full bg-zinc-200"></div>
 
 		<div class="space-y-6">
+			<!-- Mode -->
+			<div class="flex items-center justify-between">
+				<span class="text-sm font-medium text-zinc-700">Mode</span>
+				<div class="flex items-center gap-0.5 rounded-full bg-zinc-100 p-0.5">
+					<button
+						onclick={() => {
+							mode = 'sheet';
+							settingsOpen = false;
+						}}
+						class={`drawer-toggle rounded-full px-4 py-1.5 text-sm font-medium ${mode === 'sheet' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'}`}
+						>Sheet</button
+					>
+					<button
+						onclick={() => {
+							mode = 'linear';
+							settingsOpen = false;
+						}}
+						class={`drawer-toggle rounded-full px-4 py-1.5 text-sm font-medium ${mode === 'linear' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'}`}
+						>Linear</button
+					>
+				</div>
+			</div>
+
 			<!-- Unit -->
 			<div class="flex items-center justify-between">
 				<span class="text-sm font-medium text-zinc-700">Unit</span>
