@@ -220,7 +220,7 @@
 		}
 
 		function buildSheetSvg(sheet: (typeof sheets)[0]): string {
-			const PMAX = 500;
+			const PMAX = 280;
 			const sc = Math.min(PMAX / sheet.sheetWidth, PMAX / sheet.sheetHeight);
 			const w = sheet.sheetWidth * sc;
 			const h = sheet.sheetHeight * sc;
@@ -313,8 +313,7 @@
 					.join('');
 				return `<div class="card">
 					<p class="clabel">Sheet ${sheet.index + 1} &nbsp;·&nbsp; ${sheet.sheetWidth}×${sheet.sheetHeight}${ule} &nbsp;·&nbsp; ${sheet.wastePercent}% waste</p>
-					${buildSheetSvg(sheet)}
-					<ul class="plist">${placements}</ul>
+					<div class="card-body">${buildSheetSvg(sheet)}<ul class="plist">${placements}</ul></div>
 				</div>`;
 			})
 			.join('');
@@ -336,7 +335,8 @@ tbody tr:last-child td{border-bottom:none}
 .sheets{display:flex;flex-wrap:wrap;gap:14pt;margin-top:6pt}
 .card{break-inside:avoid;page-break-inside:avoid}
 .clabel{font-size:8pt;color:#71717a;margin-bottom:3pt}
-.plist{margin-top:5pt;font-size:8pt;color:#3f3f46;list-style:none}
+.card-body{display:flex;flex-direction:row;align-items:flex-start;gap:10pt}
+.plist{margin-top:0;font-size:8pt;color:#3f3f46;list-style:none}
 .plist li{padding:1pt 0}
 .rot{font-style:normal}
 </style></head><body>
@@ -756,10 +756,22 @@ tbody tr:last-child td{border-bottom:none}
 									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 active:bg-zinc-100 sm:hidden"
 									>+</button
 								>
-								<select class="{inputCls} min-w-0 flex-1 sm:flex-none" bind:value={st.grain}>
-									<option value="horizontal">Horiz →</option>
-									<option value="vertical">Vert ↑</option>
-								</select>
+								<div
+									class="flex min-w-0 flex-1 items-center gap-0.5 rounded-full bg-white p-0.5 ring-1 ring-zinc-200/60 sm:flex-none"
+								>
+									<button
+										type="button"
+										onclick={() => (st.grain = 'horizontal')}
+										class={`flex-1 rounded-full px-2.5 py-2 text-sm font-medium transition-colors sm:flex-none sm:px-3 sm:py-1 sm:text-xs ${st.grain === 'horizontal' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-700'}`}
+										>Horiz →</button
+									>
+									<button
+										type="button"
+										onclick={() => (st.grain = 'vertical')}
+										class={`flex-1 rounded-full px-2.5 py-2 text-sm font-medium transition-colors sm:flex-none sm:px-3 sm:py-1 sm:text-xs ${st.grain === 'vertical' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-700'}`}
+										>Vert ↑</button
+									>
+								</div>
 								<button onclick={() => removeSheetType(st.id)} class="{delCls} sm:hidden">×</button>
 							</div>
 							<button onclick={() => removeSheetType(st.id)} class="{delCls} hidden sm:flex"
