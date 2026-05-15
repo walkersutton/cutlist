@@ -242,8 +242,8 @@
 				const py = p.y * sc;
 				const pw = p.width * sc;
 				const ph = p.height * sc;
-				const dispW = p.rotated ? p.height : p.width;
-				const dispH = p.rotated ? p.width : p.height;
+				const dispW = p.width;
+				const dispH = p.height;
 				s += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" fill="${panelColor(p.panelId)}" rx="2"/>`;
 				if (p.grain !== 'any' && pw > 8 && ph > 8) {
 					const eg = p.rotated ? (p.grain === 'horizontal' ? 'vertical' : 'horizontal') : p.grain;
@@ -304,8 +304,8 @@
 			.map((sheet) => {
 				const placements = sheet.placements
 					.map((p) => {
-						const dw = p.rotated ? p.height : p.width;
-						const dh = p.rotated ? p.width : p.height;
+						const dw = p.width;
+						const dh = p.height;
 						const name = p.label ? esc(p.label) : `${dw}×${dh}${ule}`;
 						const rot = p.rotated ? ' <span class="rot">↺</span>' : '';
 						return `<li><span class="sw" style="background:${panelColor(p.panelId)}"></span>${name} — ${dw}×${dh}${ule}${rot}</li>`;
@@ -428,8 +428,8 @@ tbody tr:last-child td{border-bottom:none}
 					if (x2 < CW) grid[y2][x2] = '+';
 				}
 
-				const dw = p.rotated ? p.height : p.width;
-				const dh = p.rotated ? p.width : p.height;
+				const dw = p.width;
+				const dh = p.height;
 				const innerW = x2 - x1 - 2;
 				if (innerW > 0) {
 					const lbl = (p.label || `${dw}×${dh}${ul}`).slice(0, innerW);
@@ -468,8 +468,8 @@ tbody tr:last-child td{border-bottom:none}
 				`  Sheet ${sheet.index + 1} — ${sheet.sheetWidth}×${sheet.sheetHeight}${ul}  ${grainArrow(sheet.grain) || 'any grain'}`
 			);
 			for (const p of sheet.placements) {
-				const dw = p.rotated ? p.height : p.width;
-				const dh = p.rotated ? p.width : p.height;
+				const dw = p.width;
+				const dh = p.height;
 				const name = p.label ? `${p.label}  ` : '';
 				const rot = p.rotated ? ' ↺' : '';
 				const effectiveGrain =
@@ -998,8 +998,8 @@ tbody tr:last-child td{border-bottom:none}
 											{@const py = p.y * sc}
 											{@const pw = p.width * sc}
 											{@const ph = p.height * sc}
-											{@const dispW = p.rotated ? p.height : p.width}
-											{@const dispH = p.rotated ? p.width : p.height}
+											{@const dispW = p.width}
+											{@const dispH = p.height}
 											<rect
 												x={px}
 												y={py}
