@@ -212,6 +212,21 @@
 	let hasResults = $derived(sheets.length > 0);
 	let shareOpen = $state(false);
 
+	function shouldOpenPrintableTab() {
+		const ua = navigator.userAgent;
+		const isIOS =
+			/iPad|iPhone|iPod/.test(ua) ||
+			(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+		return isIOS || /Android|Mobile/.test(ua);
+	}
+
+	function writePrintableWindow(target: Window, html: string) {
+		target.document.open();
+		target.document.write(html);
+		target.document.close();
+		target.focus();
+	}
+
 	function printPlan() {
 		const ule = unit === 'in' ? '&quot;' : ' mm';
 
@@ -323,6 +338,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 @page{size:letter;margin:.75in}
 body{font-family:system-ui,-apple-system,sans-serif;font-size:10pt;color:#18181b}
+.screen-actions{display:none}
 h1{font-size:16pt;font-weight:700;margin-bottom:2pt}
 .meta{font-size:8.5pt;color:#71717a;margin-bottom:14pt}
 h2{font-size:11pt;font-weight:600;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e4e4e7}
@@ -339,7 +355,15 @@ tbody tr:last-child td{border-bottom:none}
 .plist{margin-top:0;font-size:8pt;color:#3f3f46;list-style:none}
 .plist li{padding:1pt 0}
 .rot{font-style:normal}
+@media screen{
+body{padding:18px;font-size:12px;background:white}
+.screen-actions{display:flex;position:sticky;top:0;z-index:1;align-items:center;gap:10px;margin:-18px -18px 18px;padding:12px 18px;border-bottom:1px solid #e4e4e7;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}
+.screen-actions button{border:1px solid #d4d4d8;border-radius:8px;background:#18181b;color:white;padding:9px 12px;font:600 14px system-ui,-apple-system,sans-serif}
+.screen-actions p{font-size:12px;color:#71717a}
+}
+@media print{.screen-actions{display:none!important}}
 </style></head><body>
+<div class="screen-actions"><button type="button" onclick="window.print()">Print / PDF</button><p>If the preview did not open automatically, tap Print / PDF.</p></div>
 <h1>Cut Plan</h1>
 <p class="meta">${dateStr} &nbsp;·&nbsp; Kerf: ${kerf}${ule}</p>
 <h2>Materials Needed</h2>
@@ -350,6 +374,14 @@ tbody tr:last-child td{border-bottom:none}
 <div class="sheets">${sheetCards}</div>
 <script>window.addEventListener('load',()=>{window.print();});${'<'}/script>
 </body></html>`;
+
+		if (shouldOpenPrintableTab()) {
+			const printWindow = window.open('', '_blank');
+			if (printWindow) {
+				writePrintableWindow(printWindow, html);
+				return;
+			}
+		}
 
 		const iframe = document.createElement('iframe');
 		iframe.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden';
@@ -383,56 +415,47 @@ tbody tr:last-child td{border-bottom:none}
 		}
 
 		function asciiSheetDiagram(sheet: (typeof sheets)[0]): string[] {
-			const CW = 40;
+			const CW = 36;
 			const scX = CW / sheet.sheetWidth;
 			const scY = scX * 0.5;
 			const CH = Math.min(40, Math.max(4, Math.ceil(sheet.sheetHeight * scY)));
 			const grid: string[][] = Array.from({ length: CH }, () => Array(CW).fill(' '));
+
+			function put(r: number, c: number, ch: string) {
+				if (r >= 0 && r < CH && c >= 0 && c < CW) grid[r][c] = ch;
+			}
+
+			function putHorizontal(r: number, c: number) {
+				const existing = grid[r]?.[c];
+				put(r, c, existing === '|' || existing === '+' ? '+' : '-');
+			}
+
+			function putVertical(r: number, c: number) {
+				const existing = grid[r]?.[c];
+				put(r, c, existing === '-' || existing === '+' ? '+' : '|');
+			}
 
 			for (const p of sheet.placements) {
 				const x1 = Math.floor(p.x * scX);
 				const y1 = Math.floor(p.y * scY);
 				const x2 = Math.min(CW - 1, Math.ceil((p.x + p.width) * scX));
 				const y2 = Math.min(CH - 1, Math.ceil((p.y + p.height) * scY));
-				const eg =
-					p.grain === 'any'
-						? 'any'
-						: p.rotated
-							? p.grain === 'horizontal'
-								? 'vertical'
-								: 'horizontal'
-							: p.grain;
-
-				for (let r = y1 + 1; r < y2; r++) {
-					for (let c = x1 + 1; c < x2; c++) {
-						if (eg === 'vertical' && (c - x1) % 2 === 1) grid[r][c] = '|';
-						else if (eg === 'horizontal' && (r - y1) % 2 === 1) grid[r][c] = '-';
-					}
-				}
 				for (let c = x1; c <= x2 && c < CW; c++) {
-					if (y1 < CH) grid[y1][c] = '-';
-					if (y2 < CH) grid[y2][c] = '-';
+					putHorizontal(y1, c);
+					putHorizontal(y2, c);
 				}
 				for (let r = y1 + 1; r < y2; r++) {
-					if (r < CH) {
-						grid[r][x1] = '|';
-						if (x2 < CW) grid[r][x2] = '|';
-					}
+					putVertical(r, x1);
+					putVertical(r, x2);
 				}
-				if (y1 < CH) {
-					grid[y1][x1] = '+';
-					if (x2 < CW) grid[y1][x2] = '+';
-				}
-				if (y2 < CH) {
-					grid[y2][x1] = '+';
-					if (x2 < CW) grid[y2][x2] = '+';
-				}
+				put(y1, x1, '+');
+				put(y1, x2, '+');
+				put(y2, x1, '+');
+				put(y2, x2, '+');
 
-				const dw = p.width;
-				const dh = p.height;
 				const innerW = x2 - x1 - 2;
 				if (innerW > 0) {
-					const lbl = (p.label || `${dw}×${dh}${ul}`).slice(0, innerW);
+					const lbl = (p.label || `${p.width}×${p.height}${ul}`).slice(0, innerW);
 					const midR = Math.round((y1 + y2) / 2);
 					if (midR > y1 && midR < y2) {
 						const startC = x1 + 1 + Math.floor((innerW - lbl.length) / 2);
