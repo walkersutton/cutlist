@@ -775,93 +775,353 @@
 		class="lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(400px,460px)_1fr] xl:grid-cols-[480px_1fr]"
 	>
 		<!-- Left pane: inputs -->
-		<div class="border-zinc-200/80 px-4 pt-5 pb-28 lg:overflow-y-auto lg:border-r lg:px-6 lg:pb-10">
-			{#if mode === 'sheet'}
-				<div class="space-y-7">
-					<!-- Sheet stock -->
-					<section>
-						<div class="mb-2.5 flex items-baseline justify-between gap-2">
-							<div class="flex items-baseline gap-2">
-								<h2
-									class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
-								>
-									Sheet stock
-								</h2>
-								<span class="text-xs text-zinc-400 tabular-nums">{sheetTypes.length}</span>
-							</div>
-							<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400">blank qty = ∞</span
-							>
-						</div>
-						{#each sheetTypes as st (st.id)}
-							<div class={cardCls}>
-								<div class="flex items-end gap-2">
-									<label class="flex min-w-0 flex-1 flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Width ({unit})</span
-										>
-										<input
-											type="number"
-											inputmode="decimal"
-											class={numBase}
-											min={dimMin}
-											step={dimStep}
-											bind:value={st.width}
-										/>
-									</label>
-									<span class="pb-2 text-zinc-300">×</span>
-									<label class="flex min-w-0 flex-1 flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Height ({unit})</span
-										>
-										<input
-											type="number"
-											inputmode="decimal"
-											class={numBase}
-											min={dimMin}
-											step={dimStep}
-											bind:value={st.height}
-										/>
-									</label>
-								</div>
-								<div class="mt-3 flex items-center gap-2">
-									<div
-										class="inline-flex items-center gap-0.5 rounded-full bg-zinc-100/80 p-0.5 ring-1 ring-zinc-200/70"
+		<div class="flex flex-col border-zinc-200/80 lg:min-h-0 lg:overflow-hidden lg:border-r">
+			<div class="px-4 pt-5 pb-28 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-6 lg:pb-8">
+				{#if mode === 'sheet'}
+					<div class="space-y-7">
+						<!-- Sheet stock -->
+						<section>
+							<div class="mb-2.5 flex items-baseline justify-between gap-2">
+								<div class="flex items-baseline gap-2">
+									<h2
+										class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
 									>
-										<button
-											type="button"
-											onclick={() => (st.grain = 'horizontal')}
-											class="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors {st.grain ===
-											'horizontal'
-												? 'bg-white text-zinc-900 shadow-sm'
-												: 'text-zinc-500 hover:text-zinc-800'}">Horiz →</button
-										>
-										<button
-											type="button"
-											onclick={() => (st.grain = 'vertical')}
-											class="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors {st.grain ===
-											'vertical'
-												? 'bg-white text-zinc-900 shadow-sm'
-												: 'text-zinc-500 hover:text-zinc-800'}">Vert ↑</button
-										>
+										Sheet stock
+									</h2>
+									<span class="text-xs text-zinc-400 tabular-nums">{sheetTypes.length}</span>
+								</div>
+								<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400"
+									>blank qty = ∞</span
+								>
+							</div>
+							{#each sheetTypes as st (st.id)}
+								<div class={cardCls}>
+									<div class="flex items-end gap-2">
+										<label class="flex min-w-0 flex-1 flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Width ({unit})</span
+											>
+											<input
+												type="number"
+												inputmode="decimal"
+												class={numBase}
+												min={dimMin}
+												step={dimStep}
+												bind:value={st.width}
+											/>
+										</label>
+										<span class="pb-2 text-zinc-300">×</span>
+										<label class="flex min-w-0 flex-1 flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Height ({unit})</span
+											>
+											<input
+												type="number"
+												inputmode="decimal"
+												class={numBase}
+												min={dimMin}
+												step={dimStep}
+												bind:value={st.height}
+											/>
+										</label>
 									</div>
-									<div class="ml-auto flex items-center gap-2">
+									<div class="mt-3 flex items-center gap-2">
+										<div
+											class="inline-flex items-center gap-0.5 rounded-full bg-zinc-100/80 p-0.5 ring-1 ring-zinc-200/70"
+										>
+											<button
+												type="button"
+												onclick={() => (st.grain = 'horizontal')}
+												class="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors {st.grain ===
+												'horizontal'
+													? 'bg-white text-zinc-900 shadow-sm'
+													: 'text-zinc-500 hover:text-zinc-800'}">Horiz →</button
+											>
+											<button
+												type="button"
+												onclick={() => (st.grain = 'vertical')}
+												class="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors {st.grain ===
+												'vertical'
+													? 'bg-white text-zinc-900 shadow-sm'
+													: 'text-zinc-500 hover:text-zinc-800'}">Vert ↑</button
+											>
+										</div>
+										<div class="ml-auto flex items-center gap-2">
+											<span class="text-[11px] text-zinc-400">qty</span>
+											<div class="flex items-stretch">
+												<button
+													type="button"
+													class="{stepBtnCls} rounded-l-lg"
+													onclick={() => {
+														if (st.quantity > 0) st.quantity -= 1;
+													}}>−</button
+												>
+												<input
+													type="number"
+													inputmode="numeric"
+													min="0"
+													value={st.quantity || ''}
+													placeholder="∞"
+													oninput={(e) => {
+														st.quantity = Number((e.target as HTMLInputElement).value) || 0;
+													}}
+													class={stepInputCls}
+												/>
+												<button
+													type="button"
+													class="{stepBtnCls} rounded-r-lg"
+													onclick={() => {
+														st.quantity += 1;
+													}}>+</button
+												>
+											</div>
+											<button
+												onclick={() => removeSheetType(st.id)}
+												class={delCls}
+												aria-label="Remove"
+											>
+												<svg
+													width="14"
+													height="14"
+													viewBox="0 0 16 16"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="1.6"
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													><path
+														d="M2.5 4h11M5.5 4V2.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v4M9.5 7v4M3.5 4l.7 8.2a1 1 0 0 0 1 .8h5.6a1 1 0 0 0 1-.8L12.5 4"
+													/></svg
+												>
+											</button>
+										</div>
+									</div>
+								</div>
+							{/each}
+							<button onclick={addSheetType} class={addBtnCls}>
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 16 16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+									stroke-linecap="round"
+									stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
+								>
+								Add sheet size
+							</button>
+						</section>
+
+						<!-- Panels -->
+						<section>
+							<div class="mb-2.5 flex items-baseline justify-between gap-2">
+								<div class="flex items-baseline gap-2">
+									<h2
+										class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
+									>
+										Panels
+									</h2>
+									<span class="text-xs text-zinc-400 tabular-nums">{panels.length}</span>
+								</div>
+								<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400"
+									>pieces to cut</span
+								>
+							</div>
+							{#each panels as panel (panel.id)}
+								<div class={cardCls}>
+									<div class="flex items-center gap-2">
+										<span
+											class="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/5"
+											style="background:{panelColor(panel.id)}"
+										></span>
+										<input
+											type="text"
+											class="{inputBase} flex-1"
+											placeholder="Label (optional)"
+											bind:value={panel.label}
+										/>
+										<button
+											onclick={() => removePanel(panel.id)}
+											class={delCls}
+											aria-label="Remove"
+										>
+											<svg
+												width="14"
+												height="14"
+												viewBox="0 0 16 16"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.6"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												><path
+													d="M2.5 4h11M5.5 4V2.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v4M9.5 7v4M3.5 4l.7 8.2a1 1 0 0 0 1 .8h5.6a1 1 0 0 0 1-.8L12.5 4"
+												/></svg
+											>
+										</button>
+									</div>
+									<div class="mt-2.5 flex items-end gap-2">
+										<label class="flex min-w-0 flex-1 flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Width ({unit})</span
+											>
+											<input
+												type="number"
+												inputmode="decimal"
+												class={numBase}
+												min={dimMin}
+												step={dimStep}
+												bind:value={panel.width}
+											/>
+										</label>
+										<span class="pb-2 text-zinc-300">×</span>
+										<label class="flex min-w-0 flex-1 flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Height ({unit})</span
+											>
+											<input
+												type="number"
+												inputmode="decimal"
+												class={numBase}
+												min={dimMin}
+												step={dimStep}
+												bind:value={panel.height}
+											/>
+										</label>
+									</div>
+									<div class="mt-2.5 flex items-end gap-2">
+										<label class="flex min-w-0 flex-1 flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Grain</span
+											>
+											<select class={inputBase} bind:value={panel.grain}>
+												<option value="any">Any ↕↔</option>
+												<option value="horizontal">Horiz →</option>
+												<option value="vertical">Vert ↑</option>
+											</select>
+										</label>
+										<div class="flex flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Qty</span
+											>
+											<div class="flex items-stretch">
+												<button
+													type="button"
+													class="{stepBtnCls} rounded-l-lg"
+													onclick={() => {
+														if (panel.quantity > 1) panel.quantity -= 1;
+													}}>−</button
+												>
+												<input
+													type="number"
+													inputmode="numeric"
+													min="1"
+													bind:value={panel.quantity}
+													class={stepInputCls}
+												/>
+												<button
+													type="button"
+													class="{stepBtnCls} rounded-r-lg"
+													onclick={() => {
+														panel.quantity += 1;
+													}}>+</button
+												>
+											</div>
+										</div>
+									</div>
+								</div>
+							{/each}
+							<button onclick={addPanel} class={addBtnCls}>
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 16 16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+									stroke-linecap="round"
+									stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
+								>
+								Add panel
+							</button>
+						</section>
+
+						{#if sheetUnplaced.length > 0}
+							<div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+								<p class="mb-1.5 text-xs font-semibold text-amber-800">
+									Could not place all panels
+								</p>
+								<ul class="space-y-1">
+									{#each sheetUnplaced as item (item.label + item.reason)}
+										<li class="text-xs text-amber-700">
+											{item.count > 1 ? `${item.count}× ` : ''}"{item.label}" — {item.reason ===
+											'too_large'
+												? 'too large to fit in any sheet'
+												: 'not enough stock sheets available'}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<!-- Linear mode -->
+					<div class="space-y-7">
+						<!-- Stock -->
+						<section>
+							<div class="mb-2.5 flex items-baseline justify-between gap-2">
+								<div class="flex items-baseline gap-2">
+									<h2
+										class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
+									>
+										Stock
+									</h2>
+									<span class="text-xs text-zinc-400 tabular-nums">{linearStocks.length}</span>
+								</div>
+								<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400"
+									>blank qty = ∞</span
+								>
+							</div>
+							{#each linearStocks as ls (ls.id)}
+								<div class="{cardCls} flex items-end gap-3">
+									<label class="flex min-w-0 flex-1 flex-col gap-1">
+										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+											>Length ({unit})</span
+										>
+										<input
+											type="number"
+											inputmode="decimal"
+											class={numBase}
+											min={dimMin}
+											step={dimStep}
+											bind:value={ls.length}
+										/>
+									</label>
+									<div class="flex items-center gap-2 pb-0.5">
 										<span class="text-[11px] text-zinc-400">qty</span>
 										<div class="flex items-stretch">
 											<button
 												type="button"
 												class="{stepBtnCls} rounded-l-lg"
 												onclick={() => {
-													if (st.quantity > 0) st.quantity -= 1;
+													if (ls.quantity > 0) ls.quantity -= 1;
 												}}>−</button
 											>
 											<input
 												type="number"
 												inputmode="numeric"
 												min="0"
-												value={st.quantity || ''}
+												value={ls.quantity || ''}
 												placeholder="∞"
 												oninput={(e) => {
-													st.quantity = Number((e.target as HTMLInputElement).value) || 0;
+													ls.quantity = Number((e.target as HTMLInputElement).value) || 0;
 												}}
 												class={stepInputCls}
 											/>
@@ -869,12 +1129,12 @@
 												type="button"
 												class="{stepBtnCls} rounded-r-lg"
 												onclick={() => {
-													st.quantity += 1;
+													ls.quantity += 1;
 												}}>+</button
 											>
 										</div>
 										<button
-											onclick={() => removeSheetType(st.id)}
+											onclick={() => removeLinearStock(ls.id)}
 											class={delCls}
 											aria-label="Remove"
 										>
@@ -894,390 +1154,178 @@
 										</button>
 									</div>
 								</div>
-							</div>
-						{/each}
-						<button onclick={addSheetType} class={addBtnCls}>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 16 16"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								stroke-linecap="round"
-								stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
-							>
-							Add sheet size
-						</button>
-					</section>
-
-					<!-- Panels -->
-					<section>
-						<div class="mb-2.5 flex items-baseline justify-between gap-2">
-							<div class="flex items-baseline gap-2">
-								<h2
-									class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
+							{/each}
+							<button onclick={addLinearStock} class={addBtnCls}>
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 16 16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+									stroke-linecap="round"
+									stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
 								>
-									Panels
-								</h2>
-								<span class="text-xs text-zinc-400 tabular-nums">{panels.length}</span>
+								Add stock length
+							</button>
+						</section>
+
+						<!-- Cut list -->
+						<section>
+							<div class="mb-2.5 flex items-baseline justify-between gap-2">
+								<div class="flex items-baseline gap-2">
+									<h2
+										class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
+									>
+										Cut list
+									</h2>
+									<span class="text-xs text-zinc-400 tabular-nums">{linearPieces.length}</span>
+								</div>
+								<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400"
+									>pieces to cut</span
+								>
 							</div>
-							<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400">pieces to cut</span
-							>
-						</div>
-						{#each panels as panel (panel.id)}
-							<div class={cardCls}>
-								<div class="flex items-center gap-2">
-									<span
-										class="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/5"
-										style="background:{panelColor(panel.id)}"
-									></span>
-									<input
-										type="text"
-										class="{inputBase} flex-1"
-										placeholder="Label (optional)"
-										bind:value={panel.label}
-									/>
-									<button onclick={() => removePanel(panel.id)} class={delCls} aria-label="Remove">
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 16 16"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.6"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											><path
-												d="M2.5 4h11M5.5 4V2.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v4M9.5 7v4M3.5 4l.7 8.2a1 1 0 0 0 1 .8h5.6a1 1 0 0 0 1-.8L12.5 4"
-											/></svg
-										>
-									</button>
-								</div>
-								<div class="mt-2.5 flex items-end gap-2">
-									<label class="flex min-w-0 flex-1 flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Width ({unit})</span
-										>
+							{#each linearPieces as lp (lp.id)}
+								<div class={cardCls}>
+									<div class="flex items-center gap-2">
+										<span
+											class="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/5"
+											style="background:{pieceColor(lp.id)}"
+										></span>
 										<input
-											type="number"
-											inputmode="decimal"
-											class={numBase}
-											min={dimMin}
-											step={dimStep}
-											bind:value={panel.width}
+											type="text"
+											class="{inputBase} flex-1"
+											placeholder="Label (optional)"
+											bind:value={lp.label}
 										/>
-									</label>
-									<span class="pb-2 text-zinc-300">×</span>
-									<label class="flex min-w-0 flex-1 flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Height ({unit})</span
+										<button
+											onclick={() => removeLinearPiece(lp.id)}
+											class={delCls}
+											aria-label="Remove"
 										>
-										<input
-											type="number"
-											inputmode="decimal"
-											class={numBase}
-											min={dimMin}
-											step={dimStep}
-											bind:value={panel.height}
-										/>
-									</label>
-								</div>
-								<div class="mt-2.5 flex items-end gap-2">
-									<label class="flex min-w-0 flex-1 flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Grain</span
-										>
-										<select class={inputBase} bind:value={panel.grain}>
-											<option value="any">Any ↕↔</option>
-											<option value="horizontal">Horiz →</option>
-											<option value="vertical">Vert ↑</option>
-										</select>
-									</label>
-									<div class="flex flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Qty</span
-										>
-										<div class="flex items-stretch">
-											<button
-												type="button"
-												class="{stepBtnCls} rounded-l-lg"
-												onclick={() => {
-													if (panel.quantity > 1) panel.quantity -= 1;
-												}}>−</button
+											<svg
+												width="14"
+												height="14"
+												viewBox="0 0 16 16"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.6"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												><path
+													d="M2.5 4h11M5.5 4V2.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v4M9.5 7v4M3.5 4l.7 8.2a1 1 0 0 0 1 .8h5.6a1 1 0 0 0 1-.8L12.5 4"
+												/></svg
+											>
+										</button>
+									</div>
+									<div class="mt-2.5 flex items-end gap-3">
+										<label class="flex min-w-0 flex-1 flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Length ({unit})</span
 											>
 											<input
 												type="number"
-												inputmode="numeric"
-												min="1"
-												bind:value={panel.quantity}
-												class={stepInputCls}
+												inputmode="decimal"
+												class={numBase}
+												min={dimMin}
+												step={dimStep}
+												bind:value={lp.length}
 											/>
-											<button
-												type="button"
-												class="{stepBtnCls} rounded-r-lg"
-												onclick={() => {
-													panel.quantity += 1;
-												}}>+</button
+										</label>
+										<div class="flex flex-col gap-1">
+											<span
+												class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
+												>Qty</span
 											>
+											<div class="flex items-stretch">
+												<button
+													type="button"
+													class="{stepBtnCls} rounded-l-lg"
+													onclick={() => {
+														if (lp.quantity > 1) lp.quantity -= 1;
+													}}>−</button
+												>
+												<input
+													type="number"
+													inputmode="numeric"
+													min="1"
+													bind:value={lp.quantity}
+													class={stepInputCls}
+												/>
+												<button
+													type="button"
+													class="{stepBtnCls} rounded-r-lg"
+													onclick={() => {
+														lp.quantity += 1;
+													}}>+</button
+												>
+											</div>
 										</div>
 									</div>
 								</div>
-							</div>
-						{/each}
-						<button onclick={addPanel} class={addBtnCls}>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 16 16"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								stroke-linecap="round"
-								stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
-							>
-							Add panel
-						</button>
-					</section>
-
-					{#if sheetUnplaced.length > 0}
-						<div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-							<p class="mb-1.5 text-xs font-semibold text-amber-800">Could not place all panels</p>
-							<ul class="space-y-1">
-								{#each sheetUnplaced as item (item.label + item.reason)}
-									<li class="text-xs text-amber-700">
-										{item.count > 1 ? `${item.count}× ` : ''}"{item.label}" — {item.reason ===
-										'too_large'
-											? 'too large to fit in any sheet'
-											: 'not enough stock sheets available'}
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
-				</div>
-			{:else}
-				<!-- Linear mode -->
-				<div class="space-y-7">
-					<!-- Stock -->
-					<section>
-						<div class="mb-2.5 flex items-baseline justify-between gap-2">
-							<div class="flex items-baseline gap-2">
-								<h2
-									class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
+							{/each}
+							<button onclick={addLinearPiece} class={addBtnCls}>
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 16 16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+									stroke-linecap="round"
+									stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
 								>
-									Stock
-								</h2>
-								<span class="text-xs text-zinc-400 tabular-nums">{linearStocks.length}</span>
-							</div>
-							<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400">blank qty = ∞</span
-							>
-						</div>
-						{#each linearStocks as ls (ls.id)}
-							<div class="{cardCls} flex items-end gap-3">
-								<label class="flex min-w-0 flex-1 flex-col gap-1">
-									<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-										>Length ({unit})</span
-									>
-									<input
-										type="number"
-										inputmode="decimal"
-										class={numBase}
-										min={dimMin}
-										step={dimStep}
-										bind:value={ls.length}
-									/>
-								</label>
-								<div class="flex items-center gap-2 pb-0.5">
-									<span class="text-[11px] text-zinc-400">qty</span>
-									<div class="flex items-stretch">
-										<button
-											type="button"
-											class="{stepBtnCls} rounded-l-lg"
-											onclick={() => {
-												if (ls.quantity > 0) ls.quantity -= 1;
-											}}>−</button
-										>
-										<input
-											type="number"
-											inputmode="numeric"
-											min="0"
-											value={ls.quantity || ''}
-											placeholder="∞"
-											oninput={(e) => {
-												ls.quantity = Number((e.target as HTMLInputElement).value) || 0;
-											}}
-											class={stepInputCls}
-										/>
-										<button
-											type="button"
-											class="{stepBtnCls} rounded-r-lg"
-											onclick={() => {
-												ls.quantity += 1;
-											}}>+</button
-										>
-									</div>
-									<button
-										onclick={() => removeLinearStock(ls.id)}
-										class={delCls}
-										aria-label="Remove"
-									>
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 16 16"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.6"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											><path
-												d="M2.5 4h11M5.5 4V2.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v4M9.5 7v4M3.5 4l.7 8.2a1 1 0 0 0 1 .8h5.6a1 1 0 0 0 1-.8L12.5 4"
-											/></svg
-										>
-									</button>
-								</div>
-							</div>
-						{/each}
-						<button onclick={addLinearStock} class={addBtnCls}>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 16 16"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								stroke-linecap="round"
-								stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
-							>
-							Add stock length
-						</button>
-					</section>
+								Add piece
+							</button>
+						</section>
 
-					<!-- Cut list -->
-					<section>
-						<div class="mb-2.5 flex items-baseline justify-between gap-2">
-							<div class="flex items-baseline gap-2">
-								<h2
-									class="text-[13px] font-semibold tracking-tight whitespace-nowrap text-zinc-900"
-								>
-									Cut list
-								</h2>
-								<span class="text-xs text-zinc-400 tabular-nums">{linearPieces.length}</span>
+						{#if linearUnplaced.length > 0}
+							<div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+								<p class="mb-1.5 text-xs font-semibold text-amber-800">
+									Could not place all pieces
+								</p>
+								<ul class="space-y-1">
+									{#each linearUnplaced as item (item.label + item.reason)}
+										<li class="text-xs text-amber-700">
+											{item.count > 1 ? `${item.count}× ` : ''}"{item.label}" — {item.reason ===
+											'too_large'
+												? 'too long to fit in any stock'
+												: 'not enough stock available'}
+										</li>
+									{/each}
+								</ul>
 							</div>
-							<span class="shrink-0 text-[11px] whitespace-nowrap text-zinc-400">pieces to cut</span
-							>
-						</div>
-						{#each linearPieces as lp (lp.id)}
-							<div class={cardCls}>
-								<div class="flex items-center gap-2">
-									<span
-										class="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/5"
-										style="background:{pieceColor(lp.id)}"
-									></span>
-									<input
-										type="text"
-										class="{inputBase} flex-1"
-										placeholder="Label (optional)"
-										bind:value={lp.label}
-									/>
-									<button
-										onclick={() => removeLinearPiece(lp.id)}
-										class={delCls}
-										aria-label="Remove"
-									>
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 16 16"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.6"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											><path
-												d="M2.5 4h11M5.5 4V2.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v4M9.5 7v4M3.5 4l.7 8.2a1 1 0 0 0 1 .8h5.6a1 1 0 0 0 1-.8L12.5 4"
-											/></svg
-										>
-									</button>
-								</div>
-								<div class="mt-2.5 flex items-end gap-3">
-									<label class="flex min-w-0 flex-1 flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Length ({unit})</span
-										>
-										<input
-											type="number"
-											inputmode="decimal"
-											class={numBase}
-											min={dimMin}
-											step={dimStep}
-											bind:value={lp.length}
-										/>
-									</label>
-									<div class="flex flex-col gap-1">
-										<span class="text-[10.5px] font-semibold tracking-wider text-zinc-400 uppercase"
-											>Qty</span
-										>
-										<div class="flex items-stretch">
-											<button
-												type="button"
-												class="{stepBtnCls} rounded-l-lg"
-												onclick={() => {
-													if (lp.quantity > 1) lp.quantity -= 1;
-												}}>−</button
-											>
-											<input
-												type="number"
-												inputmode="numeric"
-												min="1"
-												bind:value={lp.quantity}
-												class={stepInputCls}
-											/>
-											<button
-												type="button"
-												class="{stepBtnCls} rounded-r-lg"
-												onclick={() => {
-													lp.quantity += 1;
-												}}>+</button
-											>
-										</div>
-									</div>
-								</div>
-							</div>
-						{/each}
-						<button onclick={addLinearPiece} class={addBtnCls}>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 16 16"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								stroke-linecap="round"
-								stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9" /></svg
-							>
-							Add piece
-						</button>
-					</section>
+						{/if}
+					</div>
+				{/if}
+			</div>
 
-					{#if linearUnplaced.length > 0}
-						<div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-							<p class="mb-1.5 text-xs font-semibold text-amber-800">Could not place all pieces</p>
-							<ul class="space-y-1">
-								{#each linearUnplaced as item (item.label + item.reason)}
-									<li class="text-xs text-amber-700">
-										{item.count > 1 ? `${item.count}× ` : ''}"{item.label}" — {item.reason ===
-										'too_large'
-											? 'too long to fit in any stock'
-											: 'not enough stock available'}
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
-				</div>
-			{/if}
+			<!-- Desktop footer: pinned, outside the scroll area -->
+			<div
+				class="hidden shrink-0 items-center gap-2 border-t border-zinc-200/70 bg-white px-6 py-2.5 text-[11px] text-zinc-400 lg:flex"
+			>
+				<a
+					href="https://walkersutton.com"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="footer-link">built by Walker</a
+				>
+				<span class="text-zinc-300">·</span>
+				<a
+					href="https://github.com/walkersutton/cutlist"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="footer-link inline-flex items-center gap-1"
+				>
+					<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+						><path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+						/></svg
+					>
+					Source
+				</a>
+			</div>
 		</div>
 
 		<!-- Right pane: results -->
@@ -1340,7 +1388,7 @@
 				</div>
 
 				<!-- Diagrams -->
-				<div class="px-4 py-5 lg:flex-1 lg:overflow-y-auto lg:px-6">
+				<div class="px-4 pt-5 pb-28 lg:flex-1 lg:overflow-y-auto lg:px-6 lg:pb-5">
 					{#if mode === 'sheet'}
 						<div class="flex flex-wrap gap-4">
 							{#each sheets as sheet (sheet.index)}
@@ -1613,23 +1661,6 @@
 		</div>
 	</div>
 
-	<!-- Mobile footer -->
-	<div class="pt-2 pb-24 text-center lg:hidden">
-		<a
-			href="https://github.com/walkersutton/cutlist"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="footer-link inline-flex items-center gap-1.5 text-xs text-zinc-400"
-		>
-			<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
-				><path
-					d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
-				/></svg
-			>
-			GitHub
-		</a>
-	</div>
-
 	<!-- Mobile bottom bar -->
 	<nav
 		class="fixed right-0 bottom-0 left-0 z-30 flex border-t border-zinc-200 bg-white/95 backdrop-blur lg:hidden"
@@ -1807,6 +1838,37 @@
 						>
 						Reset everything
 					</button>
+					<div class="mt-5 flex items-center justify-center gap-2.5 text-xs text-zinc-400">
+						<a
+							href="https://walkersutton.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="footer-link">built by Walker</a
+						>
+						<span
+							class="h-[2px] w-[2px] shrink-0 translate-y-[1px] rounded-full bg-zinc-300"
+							aria-hidden="true"
+						></span>
+						<a
+							href="https://github.com/walkersutton/cutlist"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="footer-link inline-flex items-center gap-1.5"
+						>
+							<svg
+								width="11"
+								height="11"
+								class="shrink-0"
+								viewBox="0 0 16 16"
+								fill="currentColor"
+								aria-hidden="true"
+								><path
+									d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+								/></svg
+							>
+							Source
+						</a>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -1905,14 +1967,11 @@
 			background-color 120ms ease;
 	}
 	.footer-link {
-		transition:
-			color 150ms ease,
-			transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+		transition: color 150ms ease;
 	}
 	@media (hover: hover) and (pointer: fine) {
 		.footer-link:hover {
 			color: #18181b;
-			transform: translateY(-1px);
 		}
 	}
 </style>
