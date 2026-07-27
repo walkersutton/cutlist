@@ -1,4 +1,8 @@
+import { packGuillotine } from './guillotine.js';
+
 export type GrainDirection = 'horizontal' | 'vertical' | 'any';
+
+export type PackMethod = 'nested' | 'guillotine';
 
 export interface SheetType {
 	id: string;
@@ -28,6 +32,18 @@ export interface PlacedPanel {
 	rotated: boolean;
 }
 
+// One full straight cut. `pos` is the coordinate of the near (piece-side) edge of the
+// kerf slot; the blade consumes [pos, pos + kerf). depth = stage in the breakdown:
+// 1 = sheet into strips, 2 = strip into columns, 3 = cuts within a column, 4 = trims.
+export interface CutLine {
+	order: number;
+	direction: 'horizontal' | 'vertical';
+	pos: number;
+	start: number;
+	end: number;
+	depth: 1 | 2 | 3 | 4;
+}
+
 export interface Sheet {
 	index: number;
 	sheetWidth: number;
@@ -35,6 +51,7 @@ export interface Sheet {
 	grain: GrainDirection;
 	placements: PlacedPanel[];
 	wastePercent: number;
+	cuts?: CutLine[];
 }
 
 export interface UnplacedPanel {
@@ -113,7 +130,7 @@ function tryPlace(freeRects: Rect[], w: number, h: number): { rect: Rect; score:
 	return best;
 }
 
-function allowedOrientations(
+export function allowedOrientations(
 	panel: PanelInput,
 	sheetType: SheetType
 ): Array<{ w: number; h: number; rotated: boolean }> {
@@ -176,7 +193,17 @@ function applyPlacement(
 	sheet.freeRects.push(...pruneContained(newFree));
 }
 
-export function pack(sheetTypes: SheetType[], panels: PanelInput[], kerf = 0): PackResult {
+export function pack(
+	sheetTypes: SheetType[],
+	panels: PanelInput[],
+	kerf = 0,
+	method: PackMethod = 'nested'
+): PackResult {
+	if (method === 'guillotine') return packGuillotine(sheetTypes, panels, kerf);
+	return packMaxRects(sheetTypes, panels, kerf);
+}
+
+function packMaxRects(sheetTypes: SheetType[], panels: PanelInput[], kerf: number): PackResult {
 	const validTypes = sheetTypes.filter((t) => t.width > 0 && t.height > 0);
 	if (!validTypes.length || !panels.length) return { sheets: [], unplaced: [] };
 

@@ -2,7 +2,8 @@
 	import { untrack } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
-	import { pack, type PanelInput, type SheetType } from '$lib/packer.js';
+	import { pack, type PackMethod, type PanelInput, type SheetType } from '$lib/packer.js';
+	import { formatCut } from '$lib/guillotine.js';
 	import { packLinear, type LinearStock, type LinearPiece } from '$lib/linear-packer.js';
 
 	const STORAGE_KEY = 'cutlist_v1';
@@ -80,6 +81,7 @@
 	}
 
 	let kerf = $state<number>((saved.kerf as number) ?? 0.125);
+	let cutMethod = $state<PackMethod>((saved.cutMethod as PackMethod) ?? 'nested');
 	let settingsOpen = $state(false);
 	let shareOpen = $state(false);
 	let sheetZoom = $state(1.0);
@@ -152,7 +154,7 @@
 		return PALETTE[idx % PALETTE.length] ?? '#d1d5db';
 	}
 
-	let packResult = $derived(pack(sheetTypes, panels, kerf));
+	let packResult = $derived(pack(sheetTypes, panels, kerf, cutMethod));
 	let sheets = $derived(packResult.sheets);
 	let linearPackResult = $derived(packLinear(linearStocks, linearPieces, kerf));
 	let linearBoards = $derived(linearPackResult.boards);
@@ -250,7 +252,16 @@
 		try {
 			localStorage.setItem(
 				STORAGE_KEY,
-				JSON.stringify({ mode, unit, kerf, sheetTypes, panels, linearStocks, linearPieces })
+				JSON.stringify({
+					mode,
+					unit,
+					kerf,
+					cutMethod,
+					sheetTypes,
+					panels,
+					linearStocks,
+					linearPieces
+				})
 			);
 		} catch {
 			/* ignore */
@@ -287,6 +298,7 @@
 		linearStocks = [{ id: uid(), length: 96, quantity: 0 }];
 		linearPieces = [];
 		kerf = 0.125;
+		cutMethod = 'nested';
 		mode = 'sheet';
 		unit = 'in';
 		settingsOpen = false;
@@ -355,6 +367,20 @@
 					s += `<text x="${(px + pw / 2).toFixed(1)}" y="${(py + ph / 2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(1)}" fill="#18181b" font-family="system-ui,sans-serif" font-weight="500">${esc(p.label)}${p.rotated ? ' ↺' : ''}</text>`;
 				}
 			}
+			for (const c of sheet.cuts ?? []) {
+				const cpos = (c.pos + kerf / 2) * sc;
+				const c1 = c.start * sc,
+					c2 = c.end * sc;
+				const horiz = c.direction === 'horizontal';
+				const br = 6;
+				const bx = Math.min(Math.max(horiz ? c1 + br + 2 : cpos, br + 1), w - br - 1);
+				const by = Math.min(Math.max(horiz ? cpos : c1 + br + 2, br + 1), h - br - 1);
+				s += horiz
+					? `<line x1="${c1.toFixed(1)}" y1="${cpos.toFixed(1)}" x2="${c2.toFixed(1)}" y2="${cpos.toFixed(1)}" stroke="#dc2626" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"/>`
+					: `<line x1="${cpos.toFixed(1)}" y1="${c1.toFixed(1)}" x2="${cpos.toFixed(1)}" y2="${c2.toFixed(1)}" stroke="#dc2626" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"/>`;
+				s += `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${br}" fill="#dc2626"/>`;
+				s += `<text x="${bx.toFixed(1)}" y="${by.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="7" fill="white" font-family="system-ui,sans-serif" font-weight="600">${c.order}</text>`;
+			}
 			return s + '</svg>';
 		}
 		const cutList = panels.filter((p) => p.width > 0 && p.height > 0 && p.quantity > 0);
@@ -381,10 +407,13 @@
 						return `<li><span class="sw" style="background:${panelColor(p.panelId)}"></span>${name} — ${p.width}×${p.height}${ule}${rot}</li>`;
 					})
 					.join('');
-				return `<div class="card"><p class="clabel">Sheet ${sheet.index + 1} &nbsp;·&nbsp; ${sheet.sheetWidth}×${sheet.sheetHeight}${ule} &nbsp;·&nbsp; ${sheet.wastePercent}% waste</p><div class="card-body">${buildSheetSvg(sheet)}<ul class="plist">${placements}</ul></div></div>`;
+				const cutSeq = sheet.cuts?.length
+					? `<p class="cuts-label">Cut sequence</p><ol class="cutseq">${sheet.cuts.map((c) => `<li>${formatCut(c, ule)}</li>`).join('')}</ol>`
+					: '';
+				return `<div class="card"><p class="clabel">Sheet ${sheet.index + 1} &nbsp;·&nbsp; ${sheet.sheetWidth}×${sheet.sheetHeight}${ule} &nbsp;·&nbsp; ${sheet.wastePercent}% waste${sheet.cuts?.length ? ` &nbsp;·&nbsp; ${sheet.cuts.length} cuts` : ''}</p><div class="card-body">${buildSheetSvg(sheet)}<div><ul class="plist">${placements}</ul>${cutSeq}</div></div></div>`;
 			})
 			.join('');
-		const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cut Plan</title><style>*{box-sizing:border-box;margin:0;padding:0}@page{size:letter;margin:.75in}body{font-family:system-ui,-apple-system,sans-serif;font-size:10pt;color:#18181b}.screen-actions{display:none}h1{font-size:16pt;font-weight:700;margin-bottom:2pt}.meta{font-size:8.5pt;color:#71717a;margin-bottom:14pt}h2{font-size:11pt;font-weight:600;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e4e4e7}table{width:100%;border-collapse:collapse;font-size:9pt}thead th{text-align:left;padding:3pt 8pt;background:#f4f4f5;font-weight:600}tbody td{padding:3pt 8pt;border-bottom:1px solid #f4f4f5;vertical-align:middle}tbody tr:last-child td{border-bottom:none}.num{text-align:right}.sw{display:inline-block;width:8pt;height:8pt;border-radius:2pt;vertical-align:middle;margin-right:3pt}.sheets{display:flex;flex-wrap:wrap;gap:14pt;margin-top:6pt}.card{break-inside:avoid;page-break-inside:avoid}.clabel{font-size:8pt;color:#71717a;margin-bottom:3pt}.card-body{display:flex;flex-direction:row;align-items:flex-start;gap:10pt}.plist{margin-top:0;font-size:8pt;color:#3f3f46;list-style:none}.plist li{padding:1pt 0}.rot{font-style:normal}@media screen{body{padding:18px;font-size:12px;background:white}.screen-actions{display:flex;position:sticky;top:0;z-index:1;align-items:center;gap:10px;margin:-18px -18px 18px;padding:12px 18px;border-bottom:1px solid #e4e4e7;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}.screen-actions button{border:1px solid #d4d4d8;border-radius:8px;background:#18181b;color:white;padding:9px 12px;font:600 14px system-ui,-apple-system,sans-serif}.screen-actions p{font-size:12px;color:#71717a}}@media print{.screen-actions{display:none!important}}</style></head><body><div class="screen-actions"><button type="button" onclick="window.print()">Print / PDF</button><p>If the preview did not open automatically, tap Print / PDF.</p></div><h1>Cut Plan</h1><p class="meta">${dateStr} &nbsp;·&nbsp; Kerf: ${kerf}${ule}</p><h2>Materials Needed</h2><table><thead><tr><th>Sheet Size</th><th>Qty</th></tr></thead><tbody>${materialsRows}</tbody></table><h2>Cut List</h2><table><thead><tr><th>Label</th><th>Width</th><th>Height</th><th class="num">Qty</th><th>Grain</th></tr></thead><tbody>${cutRows}</tbody></table><h2>Sheet Layouts</h2><div class="sheets">${sheetCards}</div><script>window.addEventListener('load',()=>{window.print();});<\/script></body></html>`; // eslint-disable-line no-useless-escape
+		const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cut Plan</title><style>*{box-sizing:border-box;margin:0;padding:0}@page{size:letter;margin:.75in}body{font-family:system-ui,-apple-system,sans-serif;font-size:10pt;color:#18181b}.screen-actions{display:none}h1{font-size:16pt;font-weight:700;margin-bottom:2pt}.meta{font-size:8.5pt;color:#71717a;margin-bottom:14pt}h2{font-size:11pt;font-weight:600;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e4e4e7}table{width:100%;border-collapse:collapse;font-size:9pt}thead th{text-align:left;padding:3pt 8pt;background:#f4f4f5;font-weight:600}tbody td{padding:3pt 8pt;border-bottom:1px solid #f4f4f5;vertical-align:middle}tbody tr:last-child td{border-bottom:none}.num{text-align:right}.sw{display:inline-block;width:8pt;height:8pt;border-radius:2pt;vertical-align:middle;margin-right:3pt}.sheets{display:flex;flex-wrap:wrap;gap:14pt;margin-top:6pt}.card{break-inside:avoid;page-break-inside:avoid}.clabel{font-size:8pt;color:#71717a;margin-bottom:3pt}.card-body{display:flex;flex-direction:row;align-items:flex-start;gap:10pt}.plist{margin-top:0;font-size:8pt;color:#3f3f46;list-style:none}.plist li{padding:1pt 0}.cuts-label{font-size:8pt;font-weight:600;color:#71717a;margin-top:6pt}.cutseq{margin:2pt 0 0 12pt;font-size:8pt;color:#3f3f46}.cutseq li{padding:1pt 0}.rot{font-style:normal}@media screen{body{padding:18px;font-size:12px;background:white}.screen-actions{display:flex;position:sticky;top:0;z-index:1;align-items:center;gap:10px;margin:-18px -18px 18px;padding:12px 18px;border-bottom:1px solid #e4e4e7;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}.screen-actions button{border:1px solid #d4d4d8;border-radius:8px;background:#18181b;color:white;padding:9px 12px;font:600 14px system-ui,-apple-system,sans-serif}.screen-actions p{font-size:12px;color:#71717a}}@media print{.screen-actions{display:none!important}}</style></head><body><div class="screen-actions"><button type="button" onclick="window.print()">Print / PDF</button><p>If the preview did not open automatically, tap Print / PDF.</p></div><h1>Cut Plan</h1><p class="meta">${dateStr} &nbsp;·&nbsp; Kerf: ${kerf}${ule}${cutMethod === 'guillotine' ? ' &nbsp;·&nbsp; Layout: Track saw (straight cuts)' : ''}</p><h2>Materials Needed</h2><table><thead><tr><th>Sheet Size</th><th>Qty</th></tr></thead><tbody>${materialsRows}</tbody></table><h2>Cut List</h2><table><thead><tr><th>Label</th><th>Width</th><th>Height</th><th class="num">Qty</th><th>Grain</th></tr></thead><tbody>${cutRows}</tbody></table><h2>Sheet Layouts</h2><div class="sheets">${sheetCards}</div><script>window.addEventListener('load',()=>{window.print();});<\/script></body></html>`; // eslint-disable-line no-useless-escape
 		if (shouldOpenPrintableTab()) {
 			const win = window.open('', '_blank');
 			if (win) {
@@ -411,6 +440,7 @@
 			`Cut Plan — ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`
 		);
 		lines.push(`Kerf: ${kerf}${ul}`);
+		if (cutMethod === 'guillotine') lines.push('Layout: Track saw (straight cuts)');
 		lines.push('');
 		lines.push('MATERIALS');
 		for (const row of sheetSummary) lines.push(`  ${row.count}× ${row.w}×${row.h}${ul}`);
@@ -500,6 +530,10 @@
 							: p.grain;
 				const g = grainArrow(eg);
 				lines.push(`    ${name}${p.width}×${p.height}${ul}${rot}${g ? `  ${g}` : ''}`);
+			}
+			if (sheet.cuts?.length) {
+				lines.push('    CUT SEQUENCE');
+				for (const c of sheet.cuts) lines.push(`      ${formatCut(c, ul)}`);
 			}
 			for (const dl of asciiSheetDiagram(sheet)) lines.push(dl);
 		}
@@ -609,6 +643,28 @@
 						: 'text-zinc-500 hover:text-zinc-800'}">mm</button
 				>
 			</div>
+			{#if mode === 'sheet'}
+				<div
+					class="inline-flex items-center gap-0.5 rounded-full bg-zinc-100/80 p-0.5 ring-1 ring-zinc-200/70"
+				>
+					<button
+						onclick={() => (cutMethod = 'nested')}
+						title="Nested layout — parts packed freely, any cut path (CNC)"
+						class="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors {cutMethod ===
+						'nested'
+							? 'bg-white text-zinc-900 shadow-sm'
+							: 'text-zinc-500 hover:text-zinc-800'}">CNC</button
+					>
+					<button
+						onclick={() => (cutMethod = 'guillotine')}
+						title="Straight full cuts only, with a numbered cut order (track saw / table saw)"
+						class="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors {cutMethod ===
+						'guillotine'
+							? 'bg-white text-zinc-900 shadow-sm'
+							: 'text-zinc-500 hover:text-zinc-800'}">Track saw</button
+					>
+				</div>
+			{/if}
 			<div class="mx-1 h-5 w-px bg-zinc-200"></div>
 			<label class="flex items-center gap-1.5 text-[13px] text-zinc-500">
 				kerf
@@ -1301,10 +1357,18 @@
 												· {sheet.sheetWidth}×{sheet.sheetHeight}{unitLabel}</span
 											>
 										</p>
-										<span
-											class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500 tabular-nums"
-											>{sheet.wastePercent}% waste</span
-										>
+										<div class="flex items-center gap-1.5">
+											{#if sheet.cuts}
+												<span
+													class="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-500 tabular-nums"
+													>{sheet.cuts.length} cuts</span
+												>
+											{/if}
+											<span
+												class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500 tabular-nums"
+												>{sheet.wastePercent}% waste</span
+											>
+										</div>
 									</div>
 									<svg
 										viewBox="0 0 {svgW} {svgH}"
@@ -1426,6 +1490,39 @@
 												>
 											{/if}
 										{/each}
+										{#if sheet.cuts}
+											{#each sheet.cuts as c (c.order)}
+												{@const cpos = (c.pos + kerf / 2) * sc}
+												{@const c1 = c.start * sc}
+												{@const c2 = c.end * sc}
+												{@const br = Math.max(6.5, Math.min(9, 6.5 * sheetZoom))}
+												{@const bx = c.direction === 'horizontal' ? c1 + br + 2 : cpos}
+												{@const by = c.direction === 'horizontal' ? cpos : c1 + br + 2}
+												{@const bcx = Math.min(Math.max(bx, br + 1), svgW - br - 1)}
+												{@const bcy = Math.min(Math.max(by, br + 1), svgH - br - 1)}
+												<line
+													x1={c.direction === 'horizontal' ? c1 : cpos}
+													y1={c.direction === 'horizontal' ? cpos : c1}
+													x2={c.direction === 'horizontal' ? c2 : cpos}
+													y2={c.direction === 'horizontal' ? cpos : c2}
+													stroke="#dc2626"
+													stroke-width="1"
+													stroke-dasharray="4 3"
+													opacity="0.85"
+												/>
+												<circle cx={bcx} cy={bcy} r={br} fill="#dc2626" />
+												<text
+													x={bcx}
+													y={bcy}
+													text-anchor="middle"
+													dominant-baseline="central"
+													font-size={br * 1.15}
+													fill="white"
+													font-family="Inter, system-ui, sans-serif"
+													font-weight="600">{c.order}</text
+												>
+											{/each}
+										{/if}
 									</svg>
 								</div>
 							{/each}
@@ -1636,6 +1733,27 @@
 						>
 					</div>
 				</div>
+				{#if mode === 'sheet'}
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium text-zinc-700">Saw</span>
+						<div class="flex items-center gap-0.5 rounded-full bg-zinc-100 p-0.5">
+							<button
+								onclick={() => (cutMethod = 'nested')}
+								class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors {cutMethod ===
+								'nested'
+									? 'bg-white text-zinc-900 shadow-sm'
+									: 'text-zinc-500'}">CNC</button
+							>
+							<button
+								onclick={() => (cutMethod = 'guillotine')}
+								class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors {cutMethod ===
+								'guillotine'
+									? 'bg-white text-zinc-900 shadow-sm'
+									: 'text-zinc-500'}">Track saw</button
+							>
+						</div>
+					</div>
+				{/if}
 				<div class="flex items-center justify-between">
 					<span class="text-sm font-medium text-zinc-700">Unit</span>
 					<div class="flex items-center gap-0.5 rounded-full bg-zinc-100 p-0.5">
