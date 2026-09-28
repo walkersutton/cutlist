@@ -27,6 +27,17 @@ select {
 		box-shadow 150ms ease;
 }
 
+/* Draw our own chevron so it sits inset from the edge instead of the native arrow hugging it */
+select {
+	appearance: none;
+	cursor: pointer;
+	padding-right: 1.75rem;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.625rem center;
+	background-size: 10px 10px;
+}
+
 input:focus,
 select:focus {
 	outline: none;
@@ -44,5 +55,33 @@ select:focus {
 	input,
 	select {
 		transition: none;
+	}
+}
+
+/* In-app print preview (see $lib/print-preview.ts) */
+.cl-print-host {
+	position: fixed;
+	inset: 0;
+	z-index: 100;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	background: white;
+}
+
+/* Class-based (not inline) so other overflow locks, like the share sheet's, can't undo it */
+html.cl-printing body {
+	overflow: hidden;
+}
+
+@media print {
+	html.cl-printing body {
+		overflow: visible !important;
+	}
+	html.cl-printing body > :not(.cl-print-host) {
+		display: none !important;
+	}
+	html.cl-printing .cl-print-host {
+		position: static;
+		overflow: visible;
 	}
 }
