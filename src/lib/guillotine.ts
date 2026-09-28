@@ -255,6 +255,7 @@ export function packGuillotine(
 		const sheetArea = type.width * type.height;
 		sheets.push({
 			index: sheets.length,
+			stockId: type.id,
 			sheetWidth: type.width,
 			sheetHeight: type.height,
 			grain: type.grain,

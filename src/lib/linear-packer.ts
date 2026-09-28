@@ -2,6 +2,7 @@ export interface LinearStock {
 	id: string;
 	length: number;
 	quantity: number; // 0 = unlimited
+	material?: string;
 }
 
 export interface LinearPiece {
@@ -9,6 +10,8 @@ export interface LinearPiece {
 	label: string;
 	length: number;
 	quantity: number;
+	/** Required stock material; unset = any stock. */
+	material?: string;
 }
 
 export interface LinearPlacement {
@@ -20,6 +23,7 @@ export interface LinearPlacement {
 
 export interface LinearBoard {
 	index: number;
+	stockId: string;
 	stockLength: number;
 	placements: LinearPlacement[];
 	usedLength: number;
@@ -27,7 +31,7 @@ export interface LinearBoard {
 
 export interface UnplacedPiece {
 	piece: LinearPiece;
-	reason: 'too_large' | 'stock_exhausted';
+	reason: 'too_large' | 'stock_exhausted' | 'no_matching_stock';
 }
 
 export interface LinearPackResult {
@@ -129,6 +133,7 @@ export function packLinear(
 
 	const boards = openBoards.map((board, index) => ({
 		index,
+		stockId: board.stock.id,
 		stockLength: board.stock.length,
 		placements: board.placements,
 		usedLength: board.usedLength

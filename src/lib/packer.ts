@@ -10,6 +10,8 @@ export interface SheetType {
 	height: number;
 	quantity: number; // 0 = unlimited
 	grain: GrainDirection;
+	material?: string;
+	thickness?: number;
 }
 
 export interface PanelInput {
@@ -19,6 +21,9 @@ export interface PanelInput {
 	quantity: number;
 	grain: GrainDirection;
 	label: string;
+	/** Required stock material; unset = any stock. Matched with `thickness` by materialKey(). */
+	material?: string;
+	thickness?: number;
 }
 
 export interface PlacedPanel {
@@ -46,6 +51,7 @@ export interface CutLine {
 
 export interface Sheet {
 	index: number;
+	stockId: string;
 	sheetWidth: number;
 	sheetHeight: number;
 	grain: GrainDirection;
@@ -56,7 +62,7 @@ export interface Sheet {
 
 export interface UnplacedPanel {
 	panel: PanelInput;
-	reason: 'too_large' | 'stock_exhausted';
+	reason: 'too_large' | 'stock_exhausted' | 'no_matching_stock';
 }
 
 export interface PackResult {
@@ -304,6 +310,7 @@ function packMaxRects(sheetTypes: SheetType[], panels: PanelInput[], kerf: numbe
 		const usedArea = sheet.placements.reduce((s, p) => s + p.width * p.height, 0);
 		return {
 			index,
+			stockId: sheet.type.id,
 			sheetWidth: sheet.type.width,
 			sheetHeight: sheet.type.height,
 			grain: sheet.type.grain,
