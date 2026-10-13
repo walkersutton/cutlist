@@ -9,10 +9,12 @@
 			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
 			rel="stylesheet"
 		/>
+		<!-- Pageviews go to stats.walkersutton.com. stats.js counts client-side
+		     navigations itself (it wraps history.pushState). -->
 		<script
-			data-goatcounter="https://cutlist.goatcounter.com/count"
-			async
-			src="//gc.zgo.at/count.js"
+			defer
+			src="https://stats.walkersutton.com/stats.js"
+			data-site-id="cutlist.walkersutton.com"
 		></script>
 		%sveltekit.head%
 	</head>
