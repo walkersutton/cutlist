@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { cubicOut, quintOut } from 'svelte/easing';
@@ -1216,16 +1217,61 @@
 		name="keywords"
 		content="cut list, cut list optimizer, plywood cut list, lumber cut list, woodworking tool, 2d packing, linear packing"
 	/>
-	<link rel="canonical" href="https://cutlist.walkersutton.com" />
+	<link rel="canonical" href="https://cutlist.walkersutton.com/" />
 	<script type="application/ld+json">
 		{
 			"@context": "https://schema.org",
-			"@type": "WebApplication",
-			"name": "Cut List Tool",
-			"url": "https://cutlist.walkersutton.com",
-			"description": "Free online cut list optimizer for sheet goods (2D) and linear stock (1D).",
-			"applicationCategory": "Tool",
-			"operatingSystem": "All"
+			"@graph": [
+				{
+					"@type": "WebSite",
+					"@id": "https://cutlist.walkersutton.com/#website",
+					"url": "https://cutlist.walkersutton.com/",
+					"name": "cutlist",
+					"alternateName": "Cut List Tool",
+					"inLanguage": "en",
+					"publisher": { "@id": "https://cutlist.walkersutton.com/#author" }
+				},
+				{
+					"@type": "WebApplication",
+					"@id": "https://cutlist.walkersutton.com/#app",
+					"name": "cutlist — Cut List Optimizer",
+					"alternateName": ["Cut List Tool", "cutlist"],
+					"url": "https://cutlist.walkersutton.com/",
+					"description": "Free online cut list optimizer for woodworkers. Lays out parts on plywood and other sheet goods (2D) or boards and lumber (1D) to use as few sheets and boards as possible, accounting for saw kerf and grain direction. Runs in the browser with no account or install.",
+					"applicationCategory": "DesignApplication",
+					"applicationSubCategory": "Cut list optimizer",
+					"operatingSystem": "Any (web browser)",
+					"browserRequirements": "Requires JavaScript",
+					"isAccessibleForFree": true,
+					"offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+					"featureList": [
+						"2D sheet goods layout for plywood, MDF, and other panels",
+						"1D linear layout for boards, lumber, trim, pipe, and extrusions",
+						"Saw blade kerf allowance",
+						"Grain direction for sheets and parts",
+						"Track saw / guillotine layouts with a numbered cut sequence",
+						"Nested CNC layouts",
+						"Multiple materials and thicknesses per project",
+						"Shop stock with limited or unlimited quantities",
+						"Inches or millimeters",
+						"Saved plans and share links",
+						"CSV import and export",
+						"Print or save as PDF"
+					],
+					"image": "https://cutlist.walkersutton.com/logo.jpg",
+					"license": "https://opensource.org/licenses/MIT",
+					"sameAs": ["https://github.com/walkersutton/cutlist"],
+					"author": { "@id": "https://cutlist.walkersutton.com/#author" },
+					"subjectOf": { "@id": "https://cutlist.walkersutton.com/guide/#article" }
+				},
+				{
+					"@type": "Person",
+					"@id": "https://cutlist.walkersutton.com/#author",
+					"name": "Walker Sutton",
+					"url": "https://walkersutton.com",
+					"sameAs": ["https://github.com/walkersutton"]
+				}
+			]
 		}
 	</script>
 	<meta property="og:title" content="Cut List Tool — Free 1D & 2D Cut List Optimizer" />
@@ -1233,7 +1279,7 @@
 		property="og:description"
 		content="Plan your cuts without the fuss. Free online cut list optimizer for sheet goods (2D) and linear stock (1D)."
 	/>
-	<meta property="og:url" content="https://cutlist.walkersutton.com" />
+	<meta property="og:url" content="https://cutlist.walkersutton.com/" />
 	<meta name="twitter:title" content="Cut List Tool — Free 1D & 2D Cut List Optimizer" />
 	<meta
 		name="twitter:description"
@@ -2034,6 +2080,8 @@
 	>
 		<!-- Logo + plan switcher -->
 		<div class="flex min-w-0 items-center">
+			<!-- The visible wordmark hides at some widths; the page still needs a heading -->
+			<h1 class="sr-only">cutlist — free cut list optimizer for plywood and lumber</h1>
 			<img src="/logo.jpg" alt="" class="mr-2 h-7 w-7 shrink-0 lg:h-8 lg:w-8" />
 			<span
 				class="hidden text-base font-semibold tracking-tight text-zinc-900 sm:inline lg:hidden xl:inline"
@@ -3283,6 +3331,11 @@
 							? 'Add at least one sheet size and a panel to see your cut layout.'
 							: 'Add a stock length and a piece to see your cut layout.'}
 					</p>
+					<a
+						href={resolve('/guide/')}
+						class="footer-link mt-4 rounded text-[13px] font-medium text-zinc-400 underline-offset-2 outline-none hover:underline focus-visible:text-zinc-900"
+						>How it works</a
+					>
 				</div>
 			{/if}
 		</div>

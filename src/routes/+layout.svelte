@@ -14,6 +14,10 @@
 	<meta name="author" content="Walker Sutton" />
 	<meta property="og:site_name" content="Cut List Tool" />
 	<meta property="og:type" content="website" />
+	<meta property="og:image" content="https://cutlist.walkersutton.com/logo.jpg" />
+	<meta property="og:image:width" content="1080" />
+	<meta property="og:image:height" content="1080" />
+	<meta property="og:image:alt" content="cutlist logo" />
 	<meta name="twitter:card" content="summary" />
 </svelte:head>
 
