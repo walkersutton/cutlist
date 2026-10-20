@@ -1,0 +1,29 @@
+# cutlist
+
+> cutlist is a free online cut list optimizer for woodworkers and DIYers. Enter the plywood sheets or boards you have and the parts you need, and it lays the parts out to use as few sheets and boards as possible, accounting for saw kerf and grain direction. It runs in the browser with no account, sign-up, or install, and it is open source (MIT).
+
+Use it at https://cutlist.walkersutton.com/. It covers what people look for in a cut list calculator, plywood cutting layout tool, sheet goods optimizer, or lumber and board cut list optimizer.
+
+## What it does
+
+- Sheet goods (2D): lays out panels on plywood, MDF, particleboard, melamine, acrylic, and other sheets.
+- Linear stock (1D): plans cuts from boards, dimensional lumber (2×4s etc.), trim, dowels, pipe, and metal tube or extrusion.
+- Saw kerf: reserves the blade width between parts (default 1/8″ or 3 mm).
+- Grain direction: per sheet and per part (horizontal, vertical, or any); parts marked any may rotate.
+- Two layout styles: Track saw mode makes guillotine layouts (only full edge-to-edge straight cuts) with a numbered cut sequence, for track saws, table saws, and panel saws; CNC mode nests parts more tightly for CNC routers.
+- Multiple materials and thicknesses in one project; parts only go on matching stock.
+- Shop stock with limited or unlimited quantities, reused across plans.
+- Inches or millimeters.
+- Shows each sheet or board to scale, the stock needed, the waste percentage, and any parts that don't fit.
+- Saved plans (stored in the browser), share links, CSV import/export (or paste rows from Excel or Google Sheets), print or save as PDF, copy as text.
+- Works on phones and tablets.
+
+## Pages
+
+- [Cut list tool](https://cutlist.walkersutton.com/): the optimizer itself.
+- [Guide and FAQ](https://cutlist.walkersutton.com/guide/): how to make a cut list, sheet vs. linear mode, CNC vs. track saw layouts, kerf and grain, the CSV format, and frequently asked questions.
+- [Source code](https://github.com/walkersutton/cutlist): SvelteKit app, MIT license.
+
+## Author
+
+Built by Walker Sutton — https://walkersutton.com
