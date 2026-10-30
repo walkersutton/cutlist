@@ -3,6 +3,8 @@ export interface LinearStock {
 	length: number;
 	quantity: number; // 0 = unlimited
 	material?: string;
+	/** Sold at the store rather than on hand: only used for pieces your own stock can't cover. */
+	buy?: boolean;
 }
 
 export interface LinearPiece {

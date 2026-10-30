@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { materialKey, packByMaterial, packLinearByMaterial } from './material-pack.js';
+import {
+	materialKey,
+	packByMaterial,
+	packLinearByMaterial,
+	packLinearOwnedFirst,
+	packOwnedFirst
+} from './material-pack.js';
 import { pack, type PanelInput, type SheetType } from './packer.js';
 
 const birch: SheetType = {
@@ -96,5 +102,72 @@ describe('packLinearByMaterial', () => {
 		);
 		expect(r.boards.every((b) => b.stockId === 'e')).toBe(true);
 		expect(r.unplaced.map((u) => u.reason)).toEqual(['no_matching_stock']);
+	});
+});
+
+describe('packOwnedFirst', () => {
+	const store: SheetType = { ...birch, id: 'store', buy: true };
+
+	it('packs like packByMaterial when nothing is marked to buy', () => {
+		const panels = [panel({ quantity: 5 })];
+		expect(packOwnedFirst([birch, mdf], panels)).toEqual(packByMaterial([birch, mdf], panels));
+	});
+
+	it('uses stock on hand first and buys only for what is left over', () => {
+		const onHand = { ...birch, quantity: 1 };
+		const r = packOwnedFirst(
+			[store, onHand],
+			[panel({ id: 'big', width: 48, height: 96, quantity: 2 }), panel({ id: 's', quantity: 1 })]
+		);
+		expect(r.sheets.map((s) => s.stockId)).toEqual(['b', 'store', 'store']);
+		expect(r.sheets.map((s) => s.index)).toEqual([0, 1, 2]);
+		expect(r.unplaced).toEqual([]);
+	});
+
+	it('buys nothing when stock on hand covers the project', () => {
+		const r = packOwnedFirst([{ ...birch, quantity: 2 }, store], [panel({ quantity: 4 })]);
+		expect(r.sheets.every((s) => s.stockId === 'b')).toBe(true);
+	});
+
+	it('buys everything when nothing is on hand, keeping quantities', () => {
+		const r = packOwnedFirst([store], [panel({ width: 48, height: 96, quantity: 3 })]);
+		expect(r.sheets).toHaveLength(3);
+	});
+
+	it('buys larger stock for parts too big for any offcut on hand', () => {
+		const offcut: SheetType = { id: 'o', width: 24, height: 24, quantity: 1, grain: 'any' };
+		const sheet: SheetType = {
+			id: 'full',
+			width: 48,
+			height: 96,
+			quantity: 0,
+			grain: 'any',
+			buy: true
+		};
+		const r = packOwnedFirst(
+			[offcut, sheet],
+			[panel({ id: 'a', width: 40, height: 40 }), panel({ id: 'b', width: 20, height: 20 })]
+		);
+		expect(r.sheets.map((s) => s.stockId)).toEqual(['o', 'full']);
+		expect(r.unplaced).toEqual([]);
+	});
+
+	it('still reports parts that no stock, owned or bought, can take', () => {
+		const r = packOwnedFirst([{ ...birch, quantity: 1 }, store], [panel({ material: 'Oak' })]);
+		expect(r.unplaced.map((u) => u.reason)).toEqual(['no_matching_stock']);
+	});
+});
+
+describe('packLinearOwnedFirst', () => {
+	it('cuts from boards on hand before bought ones', () => {
+		const r = packLinearOwnedFirst(
+			[
+				{ id: 'buy', length: 96, quantity: 0, buy: true },
+				{ id: 'have', length: 96, quantity: 1 }
+			],
+			[{ id: 'a', label: '', length: 40, quantity: 4 }]
+		);
+		expect(r.boards.map((b) => b.stockId)).toEqual(['have', 'buy']);
+		expect(r.unplaced).toEqual([]);
 	});
 });

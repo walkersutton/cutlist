@@ -34,6 +34,9 @@ interface Wire {
 	ls: [number, number, string?][];
 	lp: [string, number, number, string?][];
 	n?: string;
+	// Indexes into s / ls of stock marked to buy.
+	b?: number[];
+	lb?: number[];
 }
 
 function toBase64Url(s: string): string {
@@ -84,6 +87,11 @@ export function encodePlan(plan: PlanState): string {
 		})
 	};
 	if (plan.name) wire.n = plan.name;
+	const buyIndexes = (items: { buy?: boolean }[]) => items.flatMap((it, i) => (it.buy ? [i] : []));
+	const b = buyIndexes(plan.sheetTypes);
+	const lb = buyIndexes(plan.linearStocks);
+	if (b.length) wire.b = b;
+	if (lb.length) wire.lb = lb;
 	return toBase64Url(JSON.stringify(wire));
 }
 
@@ -105,6 +113,9 @@ function optionalMaterial(v: unknown): { material?: string } {
 	const m = str(v).trim();
 	return m ? { material: m } : {};
 }
+function buyFlag(indexes: unknown, i: number): { buy?: true } {
+	return Array.isArray(indexes) && indexes.includes(i) ? { buy: true } : {};
+}
 function list(v: unknown): unknown[][] {
 	if (!Array.isArray(v) || !v.every(Array.isArray)) throw new Error('bad list');
 	return v as unknown[][];
@@ -123,14 +134,15 @@ export function decodePlan(encoded: string): PlanState | null {
 			unit: w.u === 'mm' ? 'mm' : 'in',
 			kerf: num(w.k),
 			cutMethod: w.c === 'g' ? 'guillotine' : 'nested',
-			sheetTypes: list(w.s).map(([width, height, quantity, g, material, thickness]) => ({
+			sheetTypes: list(w.s).map(([width, height, quantity, g, material, thickness], i) => ({
 				id: uid(),
 				width: num(width),
 				height: num(height),
 				quantity: Math.floor(num(quantity)),
 				grain: grain(g),
 				...optionalMaterial(material),
-				...(thickness !== undefined ? { thickness: num(thickness) } : {})
+				...(thickness !== undefined ? { thickness: num(thickness) } : {}),
+				...buyFlag(w.b, i)
 			})),
 			panels: list(w.p).map(([label, width, height, quantity, g, material, thickness]) => ({
 				id: uid(),
@@ -142,11 +154,12 @@ export function decodePlan(encoded: string): PlanState | null {
 				...optionalMaterial(material),
 				...(thickness !== undefined ? { thickness: num(thickness) } : {})
 			})),
-			linearStocks: list(w.ls).map(([length, quantity, material]) => ({
+			linearStocks: list(w.ls).map(([length, quantity, material], i) => ({
 				id: uid(),
 				length: num(length),
 				quantity: Math.floor(num(quantity)),
-				...optionalMaterial(material)
+				...optionalMaterial(material),
+				...buyFlag(w.lb, i)
 			})),
 			linearPieces: list(w.lp).map(([label, length, quantity, material]) => ({
 				id: uid(),

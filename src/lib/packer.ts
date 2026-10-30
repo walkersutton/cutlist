@@ -12,6 +12,8 @@ export interface SheetType {
 	grain: GrainDirection;
 	material?: string;
 	thickness?: number;
+	/** Sold at the store rather than on hand: only used for parts your own stock can't cover. */
+	buy?: boolean;
 }
 
 export interface PanelInput {

@@ -17,7 +17,7 @@ const plan: PlanState = {
 			material: 'Baltic birch',
 			thickness: 0.75
 		},
-		{ id: '12', width: 24, height: 48, quantity: 0, grain: 'any' }
+		{ id: '12', width: 24, height: 48, quantity: 0, grain: 'any', buy: true }
 	],
 	panels: [
 		{
@@ -32,7 +32,7 @@ const plan: PlanState = {
 		},
 		{ id: '9', label: '', width: 12, height: 12, quantity: 1, grain: 'any' }
 	],
-	linearStocks: [{ id: '10', length: 96, quantity: 0, material: '2×4 SPF' }],
+	linearStocks: [{ id: '10', length: 96, quantity: 0, material: '2×4 SPF', buy: true }],
 	linearPieces: [{ id: '11', label: 'Rail', length: 22.5, quantity: 4, material: '2×4 SPF' }]
 };
 

@@ -179,6 +179,11 @@
 				keep on hand, with limited or unlimited quantities, and reuse them in every plan.
 			</li>
 			<li>
+				<strong class="font-medium text-zinc-900">Shopping list:</strong> mark stock as Have or Buy. The
+				optimizer uses what you have first and only puts leftover parts on stock to buy, so you see exactly
+				which sheets or boards to pick up.
+			</li>
+			<li>
 				<strong class="font-medium text-zinc-900">Inches or millimeters</strong>, with saved plans,
 				share links, CSV import and export, print or save as PDF, and copy as text.
 			</li>
@@ -193,7 +198,8 @@
 			<li>
 				<strong class="font-medium text-zinc-900">Set your stock.</strong> Add the sheet sizes (a 4×8
 				sheet, 48×96″ or 1220×2440 mm, is filled in for you) or board lengths you’ll buy or have on hand.
-				Leave quantity blank for unlimited, or enter how many you have.
+				Leave quantity blank for unlimited, or enter how many you have. Mark stock you still need to buy
+				as Buy and the results list what to purchase.
 			</li>
 			<li>
 				<strong class="font-medium text-zinc-900">Set the kerf.</strong> Enter your blade width — 1/8″

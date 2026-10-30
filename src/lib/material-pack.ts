@@ -153,3 +153,61 @@ export function packLinearByMaterial(
 	}
 	return result;
 }
+
+/** Collapses one-per-copy unplaced entries back into parts with the leftover quantity. */
+function leftoverParts<P extends { id: string; quantity: number }>(unplaced: P[]): P[] {
+	const parts = new Map<string, P>();
+	for (const p of unplaced) {
+		const e = parts.get(p.id);
+		if (e) e.quantity++;
+		else parts.set(p.id, { ...p, quantity: 1 });
+	}
+	return [...parts.values()];
+}
+
+/**
+ * Packs onto stock on hand first, then puts only what's left over onto `buy` stock, so the
+ * buy sheets in the result are the shopping list. Without buy stock this is packByMaterial.
+ */
+export function packOwnedFirst(
+	sheetTypes: SheetType[],
+	panels: PanelInput[],
+	kerf = 0,
+	method: PackMethod = 'nested'
+): PackResult {
+	const buy = sheetTypes.filter((s) => s.buy);
+	if (!buy.length) return packByMaterial(sheetTypes, panels, kerf, method);
+	const owned = sheetTypes.filter((s) => !s.buy);
+	// The packer drops parts outright when it has no stock at all, so skip the owned pass then.
+	const hasOwned = owned.some((s) => s.width > 0 && s.height > 0);
+	const first: PackResult = hasOwned
+		? packByMaterial(owned, panels, kerf, method)
+		: { sheets: [], unplaced: [] };
+	const leftover = hasOwned ? leftoverParts(first.unplaced.map((u) => u.panel)) : panels;
+	const second = packByMaterial(buy, leftover, kerf, method);
+	return {
+		sheets: [...first.sheets, ...second.sheets].map((s, index) => ({ ...s, index })),
+		unplaced: second.unplaced
+	};
+}
+
+/** Linear counterpart of packOwnedFirst. */
+export function packLinearOwnedFirst(
+	stocks: LinearStock[],
+	pieces: LinearPiece[],
+	kerf = 0
+): LinearPackResult {
+	const buy = stocks.filter((s) => s.buy);
+	if (!buy.length) return packLinearByMaterial(stocks, pieces, kerf);
+	const owned = stocks.filter((s) => !s.buy);
+	const hasOwned = owned.some((s) => s.length > 0);
+	const first: LinearPackResult = hasOwned
+		? packLinearByMaterial(owned, pieces, kerf)
+		: { boards: [], unplaced: [] };
+	const leftover = hasOwned ? leftoverParts(first.unplaced.map((u) => u.piece)) : pieces;
+	const second = packLinearByMaterial(buy, leftover, kerf);
+	return {
+		boards: [...first.boards, ...second.boards].map((b, index) => ({ ...b, index })),
+		unplaced: second.unplaced
+	};
+}

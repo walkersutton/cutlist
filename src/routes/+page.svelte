@@ -18,7 +18,7 @@
 		type CsvKind
 	} from '$lib/csv.js';
 	import type { LinearPiece } from '$lib/linear-packer.js';
-	import { materialKey, packByMaterial, packLinearByMaterial } from '$lib/material-pack.js';
+	import { materialKey, packLinearOwnedFirst, packOwnedFirst } from '$lib/material-pack.js';
 	import { SHARE_PARAM, encodePlan, planFromHash, type PlanState } from '$lib/share.js';
 	import {
 		STORE_KEY,
@@ -383,9 +383,9 @@
 		return PALETTE[idx % PALETTE.length] ?? '#d1d5db';
 	}
 
-	let packResult = $derived(packByMaterial(packStock.sheetTypes, panels, kerf, cutMethod));
+	let packResult = $derived(packOwnedFirst(packStock.sheetTypes, panels, kerf, cutMethod));
 	let sheets = $derived(packResult.sheets);
-	let linearPackResult = $derived(packLinearByMaterial(packStock.linearStocks, linearPieces, kerf));
+	let linearPackResult = $derived(packLinearOwnedFirst(packStock.linearStocks, linearPieces, kerf));
 	let linearBoards = $derived(linearPackResult.boards);
 
 	let hasResults = $derived(mode === 'sheet' ? sheets.length > 0 : linearBoards.length > 0);
@@ -398,6 +398,13 @@
 	function linearStockName(id: string) {
 		const ls = packStock.linearStocks.find((s) => s.id === id);
 		return ls ? stockName(ls, unit) : '';
+	}
+	/** Whether a packed sheet or length comes from stock marked to buy (the shopping list). */
+	function sheetStockBuy(id: string) {
+		return !!packStock.sheetTypes.find((s) => s.id === id)?.buy;
+	}
+	function linearStockBuy(id: string) {
+		return !!packStock.linearStocks.find((s) => s.id === id)?.buy;
 	}
 
 	function sheetCardDetail(sheet: (typeof sheets)[number]) {
@@ -414,8 +421,10 @@
 	// Grouped by stock item (not just size) so two materials of the same size stay separate.
 	let sheetSummary = $derived(
 		(() => {
-			const map: Record<string, { id: string; name: string; w: number; h: number; count: number }> =
-				{};
+			const map: Record<
+				string,
+				{ id: string; name: string; w: number; h: number; count: number; buy: boolean }
+			> = {};
 			for (const s of sheets) {
 				const e = map[s.stockId];
 				if (e) e.count++;
@@ -425,16 +434,21 @@
 						name: sheetStockName(s.stockId),
 						w: s.sheetWidth,
 						h: s.sheetHeight,
-						count: 1
+						count: 1,
+						buy: sheetStockBuy(s.stockId)
 					};
 			}
-			return Object.values(map);
+			// Stock on hand first, then the shopping list.
+			return Object.values(map).sort((a, b) => Number(a.buy) - Number(b.buy));
 		})()
 	);
 
 	let linearSummary = $derived(
 		(() => {
-			const map: Record<string, { id: string; name: string; length: number; count: number }> = {};
+			const map: Record<
+				string,
+				{ id: string; name: string; length: number; count: number; buy: boolean }
+			> = {};
 			for (const b of linearBoards) {
 				const e = map[b.stockId];
 				if (e) e.count++;
@@ -443,10 +457,11 @@
 						id: b.stockId,
 						name: linearStockName(b.stockId),
 						length: b.stockLength,
-						count: 1
+						count: 1,
+						buy: linearStockBuy(b.stockId)
 					};
 			}
-			return Object.values(map);
+			return Object.values(map).sort((a, b) => Number(a.buy) - Number(b.buy));
 		})()
 	);
 
@@ -1009,10 +1024,11 @@
 			month: 'long',
 			day: 'numeric'
 		});
+		const anyBuy = sheetSummary.some((r) => r.buy);
 		const materialsRows = sheetSummary
 			.map(
 				(r) =>
-					`<tr><td>${esc(r.name) || '—'}</td><td>${r.w}×${r.h}${ule}</td><td class="num">${r.count}</td></tr>`
+					`<tr><td>${esc(r.name) || '—'}</td><td>${r.w}×${r.h}${ule}</td>${anyBuy ? `<td>${r.buy ? '<b>Buy</b>' : 'On hand'}</td>` : ''}<td class="num">${r.count}</td></tr>`
 			)
 			.join('');
 		const cutRows = cutList
@@ -1033,10 +1049,10 @@
 				const cutSeq = sheet.cuts?.length
 					? `<p class="cuts-label">Cut sequence</p><ol class="cutseq">${sheet.cuts.map((c) => `<li>${formatCut(c, ule)}</li>`).join('')}</ol>`
 					: '';
-				return `<div class="card"><p class="clabel">Sheet ${sheet.index + 1}${sheetStockName(sheet.stockId) ? ` &nbsp;·&nbsp; ${esc(sheetStockName(sheet.stockId))}` : ''} &nbsp;·&nbsp; ${sheet.sheetWidth}×${sheet.sheetHeight}${ule} &nbsp;·&nbsp; ${sheet.wastePercent}% waste${sheet.cuts?.length ? ` &nbsp;·&nbsp; ${sheet.cuts.length} cuts` : ''}</p><div class="card-body">${buildSheetSvg(sheet)}<div><ul class="plist">${placements}</ul>${cutSeq}</div></div></div>`;
+				return `<div class="card"><p class="clabel">Sheet ${sheet.index + 1}${sheetStockBuy(sheet.stockId) ? ' &nbsp;·&nbsp; <b>Buy</b>' : ''}${sheetStockName(sheet.stockId) ? ` &nbsp;·&nbsp; ${esc(sheetStockName(sheet.stockId))}` : ''} &nbsp;·&nbsp; ${sheet.sheetWidth}×${sheet.sheetHeight}${ule} &nbsp;·&nbsp; ${sheet.wastePercent}% waste${sheet.cuts?.length ? ` &nbsp;·&nbsp; ${sheet.cuts.length} cuts` : ''}</p><div class="card-body">${buildSheetSvg(sheet)}<div><ul class="plist">${placements}</ul>${cutSeq}</div></div></div>`;
 			})
 			.join('');
-		const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(currentName)} — Cut Plan</title><style>*{box-sizing:border-box;margin:0;padding:0}@page{size:letter;margin:.75in}body{font-family:system-ui,-apple-system,sans-serif;font-size:10pt;color:#18181b}.screen-actions{display:none}h1{font-size:16pt;font-weight:700;margin-bottom:2pt}.meta{font-size:8.5pt;color:#71717a;margin-bottom:14pt}h2{font-size:11pt;font-weight:600;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e4e4e7}table{width:100%;border-collapse:collapse;font-size:9pt}thead th{text-align:left;padding:3pt 8pt;background:#f4f4f5;font-weight:600}tbody td{padding:3pt 8pt;border-bottom:1px solid #f4f4f5;vertical-align:middle}tbody tr:last-child td{border-bottom:none}.num{text-align:right}.sw{display:inline-block;width:8pt;height:8pt;border-radius:2pt;vertical-align:middle;margin-right:3pt}.sheets{display:flex;flex-wrap:wrap;gap:14pt;margin-top:6pt}.card{break-inside:avoid;page-break-inside:avoid}.clabel{font-size:8pt;color:#71717a;margin-bottom:3pt}.card-body{display:flex;flex-direction:row;align-items:flex-start;gap:10pt}.plist{margin-top:0;font-size:8pt;color:#3f3f46;list-style:none}.plist li{padding:1pt 0}.cuts-label{font-size:8pt;font-weight:600;color:#71717a;margin-top:6pt}.cutseq{margin:2pt 0 0 12pt;font-size:8pt;color:#3f3f46}.cutseq li{padding:1pt 0}.rot{font-style:normal}@media screen{body{padding:18px;font-size:12px;background:white}.screen-actions{display:flex;position:sticky;top:0;z-index:1;align-items:center;gap:10px;margin:-18px -18px 18px;padding:12px 18px;border-bottom:1px solid #e4e4e7;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}.screen-actions button{border:1px solid #d4d4d8;border-radius:8px;background:#18181b;color:white;padding:9px 12px;font:600 14px system-ui,-apple-system,sans-serif}.screen-actions p{font-size:12px;color:#71717a}}@media print{.screen-actions{display:none!important}}</style></head><body><div class="screen-actions"><button type="button" onclick="window.print()">Print / PDF</button><p>If the preview did not open automatically, tap Print / PDF.</p></div><h1>${esc(currentName)}</h1><p class="meta">Cut plan &nbsp;·&nbsp; ${dateStr} &nbsp;·&nbsp; Kerf: ${kerf}${ule}${cutMethod === 'guillotine' ? ' &nbsp;·&nbsp; Layout: Track saw (straight cuts)' : ''}</p><h2>Materials Needed</h2><table><thead><tr><th>Material</th><th>Sheet Size</th><th class="num">Qty</th></tr></thead><tbody>${materialsRows}</tbody></table><h2>Cut List</h2><table><thead><tr><th>Label</th><th>Width</th><th>Height</th><th class="num">Qty</th><th>Grain</th></tr></thead><tbody>${cutRows}</tbody></table><h2>Sheet Layouts</h2><div class="sheets">${sheetCards}</div><script>window.addEventListener('load',()=>{window.print();});<\/script></body></html>`; // eslint-disable-line no-useless-escape
+		const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(currentName)} — Cut Plan</title><style>*{box-sizing:border-box;margin:0;padding:0}@page{size:letter;margin:.75in}body{font-family:system-ui,-apple-system,sans-serif;font-size:10pt;color:#18181b}.screen-actions{display:none}h1{font-size:16pt;font-weight:700;margin-bottom:2pt}.meta{font-size:8.5pt;color:#71717a;margin-bottom:14pt}h2{font-size:11pt;font-weight:600;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e4e4e7}table{width:100%;border-collapse:collapse;font-size:9pt}thead th{text-align:left;padding:3pt 8pt;background:#f4f4f5;font-weight:600}tbody td{padding:3pt 8pt;border-bottom:1px solid #f4f4f5;vertical-align:middle}tbody tr:last-child td{border-bottom:none}.num{text-align:right}.sw{display:inline-block;width:8pt;height:8pt;border-radius:2pt;vertical-align:middle;margin-right:3pt}.sheets{display:flex;flex-wrap:wrap;gap:14pt;margin-top:6pt}.card{break-inside:avoid;page-break-inside:avoid}.clabel{font-size:8pt;color:#71717a;margin-bottom:3pt}.card-body{display:flex;flex-direction:row;align-items:flex-start;gap:10pt}.plist{margin-top:0;font-size:8pt;color:#3f3f46;list-style:none}.plist li{padding:1pt 0}.cuts-label{font-size:8pt;font-weight:600;color:#71717a;margin-top:6pt}.cutseq{margin:2pt 0 0 12pt;font-size:8pt;color:#3f3f46}.cutseq li{padding:1pt 0}.rot{font-style:normal}@media screen{body{padding:18px;font-size:12px;background:white}.screen-actions{display:flex;position:sticky;top:0;z-index:1;align-items:center;gap:10px;margin:-18px -18px 18px;padding:12px 18px;border-bottom:1px solid #e4e4e7;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}.screen-actions button{border:1px solid #d4d4d8;border-radius:8px;background:#18181b;color:white;padding:9px 12px;font:600 14px system-ui,-apple-system,sans-serif}.screen-actions p{font-size:12px;color:#71717a}}@media print{.screen-actions{display:none!important}}</style></head><body><div class="screen-actions"><button type="button" onclick="window.print()">Print / PDF</button><p>If the preview did not open automatically, tap Print / PDF.</p></div><h1>${esc(currentName)}</h1><p class="meta">Cut plan &nbsp;·&nbsp; ${dateStr} &nbsp;·&nbsp; Kerf: ${kerf}${ule}${cutMethod === 'guillotine' ? ' &nbsp;·&nbsp; Layout: Track saw (straight cuts)' : ''}</p><h2>Materials Needed</h2><table><thead><tr><th>Material</th><th>Sheet Size</th>${anyBuy ? '<th>Source</th>' : ''}<th class="num">Qty</th></tr></thead><tbody>${materialsRows}</tbody></table><h2>Cut List</h2><table><thead><tr><th>Label</th><th>Width</th><th>Height</th><th class="num">Qty</th><th>Grain</th></tr></thead><tbody>${cutRows}</tbody></table><h2>Sheet Layouts</h2><div class="sheets">${sheetCards}</div><script>window.addEventListener('load',()=>{window.print();});<\/script></body></html>`; // eslint-disable-line no-useless-escape
 		if (usePrintPreview()) {
 			openPrintPreview(html);
 			return;
@@ -1059,9 +1075,19 @@
 		lines.push(`Kerf: ${kerf}${ul}`);
 		if (cutMethod === 'guillotine') lines.push('Layout: Track saw (straight cuts)');
 		lines.push('');
-		lines.push('MATERIALS');
-		for (const row of sheetSummary)
-			lines.push(`  ${row.count}× ${row.name ? `${row.name} ` : ''}${row.w}×${row.h}${ul}`);
+		const sheetLine = (row: (typeof sheetSummary)[number]) =>
+			`  ${row.count}× ${row.name ? `${row.name} ` : ''}${row.w}×${row.h}${ul}`;
+		const onHand = sheetSummary.filter((r) => !r.buy);
+		const toBuy = sheetSummary.filter((r) => r.buy);
+		if (onHand.length) {
+			lines.push(toBuy.length ? 'MATERIALS ON HAND' : 'MATERIALS');
+			for (const row of onHand) lines.push(sheetLine(row));
+		}
+		if (toBuy.length) {
+			if (onHand.length) lines.push('');
+			lines.push('SHOPPING LIST');
+			for (const row of toBuy) lines.push(sheetLine(row));
+		}
 		function grainArrow(grain: string) {
 			if (grain === 'horizontal') return 'grain →';
 			if (grain === 'vertical') return 'grain ↑';
@@ -1133,7 +1159,7 @@
 		for (const sheet of sheets) {
 			lines.push('');
 			lines.push(
-				`  Sheet ${sheet.index + 1} — ${sheetStockName(sheet.stockId) ? `${sheetStockName(sheet.stockId)} ` : ''}${sheet.sheetWidth}×${sheet.sheetHeight}${ul}  ${grainArrow(sheet.grain) || 'any grain'}`
+				`  Sheet ${sheet.index + 1}${sheetStockBuy(sheet.stockId) ? ' (buy)' : ''} — ${sheetStockName(sheet.stockId) ? `${sheetStockName(sheet.stockId)} ` : ''}${sheet.sheetWidth}×${sheet.sheetHeight}${ul}  ${grainArrow(sheet.grain) || 'any grain'}`
 			);
 			for (const p of sheet.placements) {
 				const name = p.label ? `${p.label}  ` : '';
@@ -1394,6 +1420,60 @@
 	{/if}
 {/snippet}
 
+{#snippet summaryChip(row: { count: number; name: string; buy: boolean }, size: string)}
+	<div
+		class="flex items-baseline gap-1.5 rounded-lg border px-2.5 py-1.5 whitespace-nowrap shadow-sm {row.buy
+			? 'border-amber-300 bg-amber-50'
+			: 'border-zinc-200 bg-white'}"
+		title={row.buy ? 'Not covered by stock on hand — buy these' : undefined}
+	>
+		{#if row.buy}<span class="text-[11px] font-semibold tracking-wide text-amber-800 uppercase"
+				>Buy</span
+			>{/if}
+		<span class="text-base font-semibold text-zinc-900 tabular-nums">{row.count}</span>
+		<span class="inline-flex items-baseline gap-1 text-xs text-zinc-500">
+			<span>×</span>
+			{#if row.name}<span class="font-medium text-zinc-700">{row.name}</span>{/if}
+			<span>{size}</span>
+		</span>
+	</div>
+{/snippet}
+
+{#snippet buyTag()}
+	<span
+		class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200"
+		>Buy</span
+	>
+{/snippet}
+
+<!-- Have = stock on hand, used first. Buy = sold at the store, used only for what's left over. -->
+{#snippet sourceToggle(item: { buy?: boolean }, compact = false)}
+	<div
+		class="inline-flex shrink-0 items-center gap-0.5 p-0.5 ring-1 ring-zinc-200/70 {compact
+			? 'w-[5.5rem] rounded-md bg-zinc-100/80'
+			: 'rounded-full bg-zinc-100/80'}"
+		role="radiogroup"
+		aria-label="Have on hand or buy"
+	>
+		{#each [[false, 'Have', 'Stock on hand — used first'], [true, 'Buy', 'Sold at the store — only used for what your stock on hand can’t cover']] as const as [buy, label, title] (label)}
+			<button
+				type="button"
+				role="radio"
+				aria-checked={!!item.buy === buy}
+				{title}
+				onclick={() => (item.buy = buy || undefined)}
+				class="flex-1 font-medium whitespace-nowrap transition-colors {compact
+					? 'rounded px-1 py-0.5 text-xs'
+					: 'rounded-full px-3 py-1 text-xs'} {!!item.buy === buy
+					? buy
+						? 'bg-amber-100 text-amber-900 shadow-sm'
+						: 'bg-white text-zinc-900 shadow-sm'
+					: 'text-zinc-500 hover:text-zinc-800'}">{label}</button
+			>
+		{/each}
+	</div>
+{/snippet}
+
 {#snippet stockSummary(kind: 'sheet' | 'linear')}
 	{@const items =
 		kind === 'sheet'
@@ -1402,14 +1482,16 @@
 					name: stockName(st, unit),
 					size: `${st.width}×${st.height}${unitLabel}`,
 					grain: st.grain === 'horizontal' ? '→' : st.grain === 'vertical' ? '↑' : '',
-					qty: st.quantity
+					qty: st.quantity,
+					buy: !!st.buy
 				}))
 			: shopStock.linearStocks.map((ls) => ({
 					id: ls.id,
 					name: stockName(ls, unit),
 					size: `${ls.length}${unitLabel}`,
 					grain: '',
-					qty: ls.quantity
+					qty: ls.quantity,
+					buy: !!ls.buy
 				}))}
 	<button
 		onclick={() => openStock()}
@@ -1424,6 +1506,7 @@
 					{#if it.name}<span class="font-medium text-zinc-900">{it.name}</span>{/if}
 					{it.size}{#if it.grain}<span class="text-zinc-400">{it.grain}</span>{/if}
 					<span class="text-zinc-400">{it.qty ? `×${it.qty}` : '∞'}</span>
+					{#if it.buy}<span class="font-medium text-amber-700">buy</span>{/if}
 				</span>
 			{:else}
 				<span class="text-xs text-zinc-400"
@@ -1452,6 +1535,7 @@
 {#snippet sheetStockList(target: Stock)}
 	{#each target.sheetTypes as st (st.id)}
 		<div class={cardCls}>
+			<div class="mb-2.5">{@render sourceToggle(st)}</div>
 			<div class="mb-2.5 flex items-center gap-2">
 				<input
 					type="text"
@@ -1591,6 +1675,7 @@
 {#snippet boardStockList(target: Stock)}
 	{#each target.linearStocks as ls (ls.id)}
 		<div class={cardCls}>
+			<div class="mb-2.5">{@render sourceToggle(ls)}</div>
 			<input
 				type="text"
 				class="{inputBase} mb-2.5"
@@ -1723,6 +1808,7 @@
 			<span class="w-3"></span>
 			<span class="w-[4.5rem] text-right">H</span>
 			<span class="w-[3.75rem] text-center">Grain</span>
+			<span class="w-[5.5rem] text-center">Source</span>
 			<span class="w-[6.5rem] text-center">Qty</span>
 			<span class="w-7"></span>
 		</div>
@@ -1785,6 +1871,7 @@
 					>
 				{/each}
 			</div>
+			{@render sourceToggle(st, true)}
 			<div class="flex w-[6.5rem] justify-center">{@render qtyStepper(st)}</div>
 			<button onclick={() => removeSheetType(target, st.id)} class={rowDelCls} aria-label="Remove">
 				<svg
@@ -1824,6 +1911,7 @@
 		<div class="{rowHeadCls} gap-2">
 			<span class="min-w-0 flex-1">Material</span>
 			<span class="w-20 text-right">Length</span>
+			<span class="w-[5.5rem] text-center">Source</span>
 			<span class="w-[6.5rem] text-center">Qty</span>
 			<span class="w-7"></span>
 		</div>
@@ -1847,6 +1935,7 @@
 				step={dimStep}
 				bind:value={ls.length}
 			/>
+			{@render sourceToggle(ls, true)}
 			<div class="flex w-[6.5rem] justify-center">{@render qtyStepper(ls)}</div>
 			<button
 				onclick={() => removeLinearStock(target, ls.id)}
@@ -1921,12 +2010,15 @@
 								<span class="font-medium text-zinc-700">{st.width}×{st.height}{unitLabel}</span>
 								<span class="text-zinc-400">· {sheetArea(st.width, st.height)}</span>
 							</p>
-							<span
-								class="rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums {st.quantity
-									? 'bg-zinc-900 text-white'
-									: 'bg-zinc-100 text-zinc-500'}"
-								>{st.quantity ? `×${st.quantity}` : '∞ unlimited'}</span
-							>
+							<span class="flex shrink-0 items-center gap-1">
+								{#if st.buy}{@render buyTag()}{/if}
+								<span
+									class="rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums {st.quantity
+										? 'bg-zinc-900 text-white'
+										: 'bg-zinc-100 text-zinc-500'}"
+									>{st.quantity ? `×${st.quantity}` : '∞ unlimited'}</span
+								>
+							</span>
 						</div>
 						<svg
 							width={w + off * (depth - 1)}
@@ -2056,6 +2148,7 @@
 							</div>
 						</div>
 					</div>
+					{#if ls.buy}{@render buyTag()}{/if}
 					<span
 						class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums {ls.quantity
 							? 'bg-zinc-900 text-white'
@@ -3007,31 +3100,11 @@
 					<div class="flex flex-wrap items-center gap-1.5">
 						{#if mode === 'sheet'}
 							{#each sheetSummary as row (row.id)}
-								<div
-									class="flex items-baseline gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 whitespace-nowrap shadow-sm"
-								>
-									<span class="text-base font-semibold text-zinc-900 tabular-nums">{row.count}</span
-									>
-									<span class="inline-flex items-baseline gap-1 text-xs text-zinc-500">
-										<span>×</span>
-										{#if row.name}<span class="font-medium text-zinc-700">{row.name}</span>{/if}
-										<span>{row.w}×{row.h}{unitLabel}</span>
-									</span>
-								</div>
+								{@render summaryChip(row, `${row.w}×${row.h}${unitLabel}`)}
 							{/each}
 						{:else}
 							{#each linearSummary as row (row.id)}
-								<div
-									class="flex items-baseline gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 whitespace-nowrap shadow-sm"
-								>
-									<span class="text-base font-semibold text-zinc-900 tabular-nums">{row.count}</span
-									>
-									<span class="inline-flex items-baseline gap-1 text-xs text-zinc-500">
-										<span>×</span>
-										{#if row.name}<span class="font-medium text-zinc-700">{row.name}</span>{/if}
-										<span>{row.length}{unitLabel}</span>
-									</span>
-								</div>
+								{@render summaryChip(row, `${row.length}${unitLabel}`)}
 							{/each}
 						{/if}
 						{#if wastePctTotal != null}
@@ -3082,6 +3155,7 @@
 											<span class="text-zinc-400">· {sheetCardDetail(sheet)}</span>
 										</p>
 										<div class="flex items-center gap-1.5">
+											{#if sheetStockBuy(sheet.stockId)}{@render buyTag()}{/if}
 											{#if sheet.cuts}
 												<span
 													class="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-500 tabular-nums"
@@ -3260,6 +3334,8 @@
 									<p class="mb-2 text-xs font-medium text-zinc-700">
 										Stock {board.index + 1}
 										<span class="text-zinc-400">· {boardCardDetail(board)}</span>
+										{#if linearStockBuy(board.stockId)}<span class="ml-1.5">{@render buyTag()}</span
+											>{/if}
 										{#if board.stockLength - board.usedLength > 0}
 											<span class="ml-2 text-zinc-400"
 												>{Math.round((board.stockLength - board.usedLength) * 100) / 100}{unitLabel} remaining</span
@@ -3401,6 +3477,7 @@
 								>{/if}
 							{'length' in it ? `${it.length}` : `${it.width}×${it.height}`}{unitLabel}
 							<span class="text-zinc-400">{it.quantity ? `×${it.quantity}` : '∞'}</span>
+							{#if it.buy}<span class="font-medium text-amber-700">buy</span>{/if}
 						</span>
 					{:else}
 						<span class="text-xs text-zinc-400"
