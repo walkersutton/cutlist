@@ -56,6 +56,12 @@ describe('share encoding', () => {
 		expect(encodePlan(plan)).toMatch(/^[A-Za-z0-9_-]+$/);
 	});
 
+	it('compresses well below the uncompressed encoding', () => {
+		const big = { ...plan, panels: Array.from({ length: 20 }, () => plan.panels[0]) };
+		const uncompressed = Buffer.from(JSON.stringify(big)).toString('base64url').length;
+		expect(encodePlan(big).length).toBeLessThan(uncompressed / 3);
+	});
+
 	it('reads the plan from a location hash', () => {
 		expect(planFromHash(`#${SHARE_PARAM}=${encodePlan(plan)}`)?.panels).toHaveLength(2);
 		expect(planFromHash('')).toBeNull();
@@ -74,16 +80,19 @@ describe('share encoding', () => {
 			ls: [[96, 0]],
 			lp: []
 		};
-		const decoded = decodePlan(btoa(JSON.stringify(old)));
+		const decoded = planFromHash(`#plan=${btoa(JSON.stringify(old))}`);
 		expect(decoded?.sheetTypes[0]).not.toHaveProperty('material');
 		expect(decoded?.sheetTypes[0]).not.toHaveProperty('thickness');
 		expect(decoded?.linearStocks[0]).not.toHaveProperty('material');
+		expect(decoded?.sheetTypes[0].grain).toBe('vertical');
 	});
 
 	it('rejects malformed input', () => {
 		expect(decodePlan('not-base64!!')).toBeNull();
-		expect(decodePlan(btoa('{"v":1}'))).toBeNull();
-		expect(decodePlan(btoa(JSON.stringify({ v: 99 })))).toBeNull();
+		const legacy = (o: unknown) => decodePlan(btoa(JSON.stringify(o)), { compressed: false });
+		expect(legacy({ v: 1 })).toBeNull();
+		expect(legacy({ v: 99 })).toBeNull();
+		expect(decodePlan(btoa(JSON.stringify({ v: 1, k: 0 })))).toBeNull();
 		const bad = {
 			v: 1,
 			m: 's',
@@ -95,6 +104,6 @@ describe('share encoding', () => {
 			ls: [],
 			lp: []
 		};
-		expect(decodePlan(btoa(JSON.stringify(bad)))).toBeNull();
+		expect(legacy(bad)).toBeNull();
 	});
 });

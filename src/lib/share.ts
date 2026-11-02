@@ -1,3 +1,4 @@
+import { deflateSync, inflateSync, strFromU8, strToU8 } from 'fflate';
 import type { GrainDirection, PackMethod, PanelInput, SheetType } from './packer.js';
 import type { LinearPiece, LinearStock } from './linear-packer.js';
 
@@ -15,7 +16,9 @@ export interface PlanState {
 
 // Hash param holding the encoded plan. The fragment is never sent to the server, so shared
 // plans stay out of request logs and work with the static build.
-export const SHARE_PARAM = 'plan';
+export const SHARE_PARAM = 'p';
+// Older links carried uncompressed JSON under this param; they still open.
+const LEGACY_SHARE_PARAM = 'plan';
 
 const VERSION = 1;
 const GRAIN_TO_CODE: Record<GrainDirection, string> = { any: 'a', horizontal: 'h', vertical: 'v' };
@@ -39,15 +42,15 @@ interface Wire {
 	lb?: number[];
 }
 
-function toBase64Url(s: string): string {
+function toBase64Url(bytes: Uint8Array): string {
 	let bin = '';
-	for (const b of new TextEncoder().encode(s)) bin += String.fromCharCode(b);
+	for (const b of bytes) bin += String.fromCharCode(b);
 	return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function fromBase64Url(s: string): string {
+function fromBase64Url(s: string): Uint8Array {
 	const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
-	return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+	return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
 export function encodePlan(plan: PlanState): string {
@@ -92,7 +95,9 @@ export function encodePlan(plan: PlanState): string {
 	const lb = buyIndexes(plan.linearStocks);
 	if (b.length) wire.b = b;
 	if (lb.length) wire.lb = lb;
-	return toBase64Url(JSON.stringify(wire));
+	// Raw deflate keeps links roughly a third the size, short enough for messaging apps to linkify
+	// whole. It's synchronous so a shared plan can be read before the page first renders.
+	return toBase64Url(deflateSync(strToU8(JSON.stringify(wire)), { level: 9 }));
 }
 
 function num(v: unknown, min = 0): number {
@@ -122,9 +127,10 @@ function list(v: unknown): unknown[][] {
 }
 
 /** Decodes an encoded plan. Returns null for anything malformed rather than throwing. */
-export function decodePlan(encoded: string): PlanState | null {
+export function decodePlan(encoded: string, { compressed = true } = {}): PlanState | null {
 	try {
-		const w = JSON.parse(fromBase64Url(encoded)) as Partial<Wire>;
+		const bytes = fromBase64Url(encoded);
+		const w = JSON.parse(strFromU8(compressed ? inflateSync(bytes) : bytes)) as Partial<Wire>;
 		if (w.v !== VERSION) return null;
 		let id = 1;
 		const uid = () => String(id++);
@@ -174,8 +180,11 @@ export function decodePlan(encoded: string): PlanState | null {
 	}
 }
 
-/** Reads a shared plan from a location hash like `#plan=...`. */
+/** Reads a shared plan from a location hash like `#p=...` (or a legacy `#plan=...`). */
 export function planFromHash(hash: string): PlanState | null {
-	const value = new URLSearchParams(hash.replace(/^#/, '')).get(SHARE_PARAM);
-	return value ? decodePlan(value) : null;
+	const params = new URLSearchParams(hash.replace(/^#/, ''));
+	const value = params.get(SHARE_PARAM);
+	if (value) return decodePlan(value);
+	const legacy = params.get(LEGACY_SHARE_PARAM);
+	return legacy ? decodePlan(legacy, { compressed: false }) : null;
 }
